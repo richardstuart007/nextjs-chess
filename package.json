@@ -1,0 +1,50 @@
+{
+  "name": "nextjs-chess",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "migrate": "npx tsx lib/migrate.ts",
+    "create-user": "npx tsx lib/create-user.ts",
+    "locallocal": "set PORT=3020 && copy /Y .env.locallocal .env && next dev --turbopack",
+    "localdev": "set PORT=3021 && copy /Y .env.localdev .env && next dev --turbopack",
+    "localprod": "set PORT=3022 && copy /Y .env.localprod .env && next dev --turbopack"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.1.5",
+    "@vercel/postgres": "^0.10.0",
+    "bcryptjs": "^2.4.3",
+    "chess.js": "^1.0.0-beta.8",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.4.2",
+    "next": "16.2.3",
+    "next-auth": "^5.0.0-beta.22",
+    "nextjs-shared": "github:richardstuart007/nextjs-shared",
+    "pg": "^8.13.1",
+    "react": "19.2.4",
+    "react-chessboard": "^4.7.2",
+    "react-dom": "19.2.4",
+    "stockfish": "^18.0.7",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/pg": "^8",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.3",
+    "tailwindcss": "^4",
+    "tsx": "^4",
+    "typescript": "^5"
+  },
+  "overrides": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  }
+}
