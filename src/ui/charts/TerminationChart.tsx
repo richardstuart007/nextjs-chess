@@ -113,9 +113,10 @@ export default function TerminationChart({ players }: TerminationChartProps) {
             />
             <YAxis tick={{ fontSize: 10 }} width={45} />
             <Tooltip
-              formatter={(value: number, name: string, props: any) => {
-                const pct = props.payload.total > 0
-                  ? ` (${Math.round((value / props.payload.total) * 100)}%)`
+              formatter={(value, name, props) => {
+                const total = (props as any).payload?.total ?? 0
+                const pct = total > 0 && typeof value === 'number'
+                  ? ` (${Math.round((value / total) * 100)}%)`
                   : ''
                 return [`${value}${pct}`, name]
               }}

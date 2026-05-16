@@ -349,7 +349,7 @@ export default function OpeningScoreChart({ players, onSelectGame, lastAnalyzedG
                 <LabelList
                   dataKey='score_pct'
                   position='right'
-                  formatter={(v: number) => `${v}%`}
+                  formatter={(v) => `${v ?? ''}%`}
                   style={{ fontSize: 9, fill: '#374151' }}
                 />
               </Bar>

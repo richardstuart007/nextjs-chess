@@ -182,7 +182,8 @@ export default function RatingChart({ games }: RatingChartProps) {
     return d.getMonth() === 0 ? String(d.getFullYear()) : ''
   }
 
-  const labelFormatter = (ts: number) => {
+  const labelFormatter = (ts: unknown) => {
+    if (typeof ts !== 'number') return ''
     const d = new Date(ts)
     return chartSpanDays <= 92
       ? d.toLocaleString('default', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -235,7 +236,7 @@ export default function RatingChart({ games }: RatingChartProps) {
             <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']} width={45} />
             <Tooltip
               labelFormatter={labelFormatter}
-              formatter={(value: number, name: string) => [value, name]}
+              formatter={(value, name) => [value, name]}
               contentStyle={{ fontSize: 11 }}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
