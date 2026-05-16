@@ -10,6 +10,7 @@ import { getGameCount, getDeconGameCount } from '@/src/lib/actions/games'
 import { initSync, syncArchive } from '@/src/lib/actions/sync'
 import { ChessComPlayer, fetchPlayer, fetchPlayerStats } from '@/src/lib/chesscom'
 import { DEFAULT_PLAYER } from '@/src/lib/constants'
+import { runCronSync } from '@/src/lib/actions/cron'
 
 
 export default function MaintenancePage() {
@@ -20,6 +21,8 @@ export default function MaintenancePage() {
   const [syncing, setSyncing] = useState(false)
   const [syncProgress, setSyncProgress] = useState<SyncProgressData | null>(null)
   const [error, setError] = useState('')
+  const [cronRunning, setCronRunning] = useState(false)
+  const [cronResult, setCronResult] = useState<{ players: { username: string; inserted: number; deconstructed: number }[] } | null>(null)
 
   async function handleSearch(username: string) {
     setError('')
@@ -124,6 +127,20 @@ export default function MaintenancePage() {
     }
   }
 
+  async function handleCronSync() {
+    setCronRunning(true)
+    setCronResult(null)
+    setError('')
+    try {
+      const result = await runCronSync()
+      setCronResult(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cron sync failed')
+    } finally {
+      setCronRunning(false)
+    }
+  }
+
   async function handleDeconComplete() {
     if (player) {
       const decon = await getDeconGameCount(player.username)
@@ -148,6 +165,22 @@ export default function MaintenancePage() {
       {syncProgress && (
         <SyncProgress progress={syncProgress} onComplete={handleSyncComplete} />
       )}
+
+      <MyBox title='Cron Sync'>
+        <p className='text-xs text-gray-500 mb-2'>Refresh all players: sync new games, deconstruct, update ratings.</p>
+        <MyButton onClick={handleCronSync} disabled={cronRunning}>
+          {cronRunning ? 'Running...' : 'Run Cron Sync'}
+        </MyButton>
+        {cronResult && (
+          <div className='mt-2 text-xs text-gray-700 space-y-1'>
+            {cronResult.players.map(p => (
+              <div key={p.username}>
+                {p.username}: {p.inserted} inserted, {p.deconstructed} deconstructed
+              </div>
+            ))}
+          </div>
+        )}
+      </MyBox>
 
       {player && gameCount === 0 && !syncing && !loading && (
         <MyBox title='No Games Found'>

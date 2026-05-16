@@ -56,6 +56,22 @@ export async function upsertPlayer(data: {
   return rows[0] ?? null
 }
 
+export async function updatePlayerRating(username: string): Promise<number | null> {
+  const { sql } = await import('nextjs-shared/db')
+  const db = await sql()
+  const result = await db.query({
+    caller: 'updatePlayerRating',
+    query: `SELECT CASE WHEN gd_player_color = 'white' THEN gd_white_rating ELSE gd_black_rating END AS rating
+            FROM tgd_gamesdecon WHERE gd_player_username = $1 ORDER BY gd_end_time DESC LIMIT 1`,
+    params: [username.toLowerCase()],
+    functionName: 'updatePlayerRating'
+  })
+  if (result.rows.length === 0) return null
+  const rating = Number(result.rows[0].rating)
+  await upsertPlayer({ username, rating_blitz: rating })
+  return rating
+}
+
 export async function getPlayers(): Promise<{ username: string; display_name: string | null }[]> {
   const rows = await table_fetch({
     caller: 'getPlayers',

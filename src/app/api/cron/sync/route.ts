@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPlayers } from '@/src/lib/actions/players'
+import { getPlayers, updatePlayerRating } from '@/src/lib/actions/players'
 import { initSync, syncArchive } from '@/src/lib/actions/sync'
 import { deconstructGames } from '@/src/lib/actions/deconstruct'
 
@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         }
 
         const { processed } = await deconstructGames(username, 0)
+        await updatePlayerRating(username)
         summary.push({ username, inserted: totalInserted, deconstructed: processed })
       } catch (err) {
         console.error(`Cron sync failed for ${username}:`, err)
