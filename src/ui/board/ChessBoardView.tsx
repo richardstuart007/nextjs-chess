@@ -347,7 +347,7 @@ export default function ChessBoardView({ game, gameId, username, stockfishDepth,
   // -----------------------------------------------------------------------
   // Deep (infinite) analysis of current position
   // -----------------------------------------------------------------------
-  function startDeepAnalysis() {
+  async function startDeepAnalysis() {
     const fen = currentNode?.fenBefore ?? tree?.root.fen
     if (!fen) return
 
@@ -355,15 +355,14 @@ export default function ChessBoardView({ game, gameId, username, stockfishDepth,
     if (!engine) {
       engine = new StockfishEngine()
       engineRef.current = engine
-      engine.init().then(() => {
-        setDeepAnalyzing(true)
-        setDeepAnalysisData(null)
-        engine!.startInfiniteAnalysis(
-          fen,
-          stockfishMultiPv ?? STOCKFISH_DEFAULTS.multiPv,
-          (update) => setDeepAnalysisData(update)
-        )
-      })
+      await engine.init()
+      setDeepAnalyzing(true)
+      setDeepAnalysisData(null)
+      engine.startInfiniteAnalysis(
+        fen,
+        stockfishMultiPv ?? STOCKFISH_DEFAULTS.multiPv,
+        (update) => setDeepAnalysisData(update)
+      )
       return
     }
 
