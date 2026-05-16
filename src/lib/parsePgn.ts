@@ -92,6 +92,23 @@ export function countMoves(pgn: string): number {
 }
 
 /**
+ * Extract first N half-moves from a PGN string, stripped of headers/comments/annotations.
+ * Used for sorting and displaying opening move sequences.
+ * Output: "e4 e5 Nf3 Nc6 Bb5 a6 ..."
+ */
+export function parsePgnOpening(pgn: string, halfMoves: number = 999): string {
+  const moveText = pgn.replace(/\[.*?\]\s*/gs, '').trim()
+  const cleaned = moveText
+    .replace(/\{[^}]*\}/g, '')
+    .replace(/\$\d+/g, '')
+    .replace(/1-0|0-1|1\/2-1\/2|\*/g, '')
+    .replace(/\d+\.{1,3}/g, '')
+    .trim()
+  const moves = cleaned.split(/\s+/).filter(m => m.length > 0)
+  return moves.slice(0, halfMoves).join(' ')
+}
+
+/**
  * Parse UTCDate header "YYYY.MM.DD" to a Date-compatible string "YYYY-MM-DD"
  */
 export function parsePlayedDate(utcDate: string): string | null {

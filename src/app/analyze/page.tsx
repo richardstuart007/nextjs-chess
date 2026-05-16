@@ -63,7 +63,7 @@ function AnalyzeContent() {
   }, [gameId, isFree])
 
   function handleBack() {
-    router.push('/')
+    router.push(gameId ? `/?highlight=${gameId}` : '/')
   }
 
   if (loading) {

@@ -4,19 +4,19 @@ import MyBox from 'nextjs-shared/MyBox'
 
 interface PlayerProfileProps {
   username: string
+  displayName?: string
   avatar?: string
-  joinDate?: string
   ratings?: Record<string, number>
 }
 
 export default function PlayerProfile({
   username,
+  displayName,
   avatar,
-  joinDate,
   ratings
 }: PlayerProfileProps) {
   return (
-    <MyBox title='Player Profile'>
+    <MyBox>
       <div className='flex items-start gap-4'>
         {avatar && (
           <img
@@ -26,10 +26,10 @@ export default function PlayerProfile({
           />
         )}
         <div className='flex-1'>
-          <h2 className='text-sm font-bold'>{username}</h2>
-          {joinDate && (
-            <p className='text-xs text-gray-500'>Joined: {joinDate}</p>
+          {displayName && (
+            <h2 className='text-sm font-bold'>{displayName}</h2>
           )}
+          <p className='text-xs text-gray-500'>{username}</p>
 
           {ratings && Object.keys(ratings).length > 0 && (
             <div className='mt-2 flex flex-wrap gap-2'>

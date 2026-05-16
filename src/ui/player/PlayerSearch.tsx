@@ -5,6 +5,7 @@ import { MyButton } from 'nextjs-shared/MyButton'
 import { MyInput } from 'nextjs-shared/MyInput'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyLoadingMessage } from 'nextjs-shared/MyLoadingMessage'
+import { DEFAULT_PLAYER } from '@/src/lib/constants'
 
 interface PlayerSearchProps {
   onSearch: (username: string) => void
@@ -13,9 +14,7 @@ interface PlayerSearchProps {
 }
 
 export default function PlayerSearch({ onSearch, loading, error }: PlayerSearchProps) {
-  const [username, setUsername] = useState(
-    process.env.NEXT_PUBLIC_PRIMARY_USERNAME ?? 'stricade'
-  )
+  const [username, setUsername] = useState(DEFAULT_PLAYER)
 
   function handleSubmit() {
     const trimmed = username.trim()

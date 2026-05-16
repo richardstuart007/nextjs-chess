@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyButton } from 'nextjs-shared/MyButton'
 import { MyInput } from 'nextjs-shared/MyInput'
@@ -9,13 +9,21 @@ import MyPagination from 'nextjs-shared/MyPagination'
 import { ChessComGame } from '@/src/lib/chesscom'
 import {
   fetchFilteredGames,
-  fetchFilteredGamePages,
+  getEarliestGameDate,
   GameFilters
 } from '@/src/lib/actions/games'
+import { DEFAULT_DATE_FROM, DEFAULT_PLAYER } from '@/src/lib/constants'
+
+interface PlayerOption {
+  username: string
+  displayName: string | null
+}
 
 interface GameListProps {
-  username: string
-  onSelectGame: (game: ChessComGame) => void
+  players: PlayerOption[]
+  onSelectGame: (game: ChessComGame, username: string) => void
+  onGamesChange?: (games: any[]) => void
+  lastAnalyzedGameId?: number
 }
 
 const RESULT_STYLES: Record<string, string> = {
@@ -24,14 +32,48 @@ const RESULT_STYLES: Record<string, string> = {
   draw: 'text-gray-500 font-bold'
 }
 
-export default function GameList({ username, onSelectGame }: GameListProps) {
-  // Filter state
-  const [filters, setFilters] = useState<GameFilters>({})
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(0)
-  const [games, setGames] = useState<any[]>([])
+const BOTH = 'Both'
+
+const TODAY = new Date().toISOString().slice(0, 10)
+
+function ss<T>(key: string, fallback: T): T {
+  try { const v = sessionStorage.getItem(key); return v ? JSON.parse(v) as T : fallback } catch { return fallback }
+}
+
+export default function GameList({ players, onSelectGame, onGamesChange, lastAnalyzedGameId }: GameListProps) {
+  const hasMultiple = players.length > 1
+  const playerFilterOptions = hasMultiple ? [BOTH, ...players.map(p => p.username)] : players.map(p => p.username)
+
+  const [playerFilter, setPlayerFilter] = useState(() => {
+    const saved = ss<string>('chess-gl-playerFilter', '')
+    return saved && (saved === BOTH || players.some(p => p.username === saved))
+      ? saved : (players.some(p => p.username === DEFAULT_PLAYER) ? DEFAULT_PLAYER : (hasMultiple ? BOTH : (players[0]?.username ?? '')))
+  })
+  const [filters, setFilters] = useState<GameFilters>(() => ss('chess-gl-filters', { dateFrom: DEFAULT_DATE_FROM }))
+  const [currentPage, setCurrentPage] = useState(() => ss('chess-gl-page', 1))
+  const [itemsPerPage, setItemsPerPage] = useState(() => ss('chess-gl-items', 15))
+  const [allGames, setAllGames] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [itemsPerPage, setItemsPerPage] = useState(15)
+  const [minDate, setMinDate] = useState<string | undefined>()
+
+  const playerUsernames = players.map(p => p.username).join(',')
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('chess-gl-filters', JSON.stringify(filters))
+      sessionStorage.setItem('chess-gl-playerFilter', JSON.stringify(playerFilter))
+      sessionStorage.setItem('chess-gl-page', JSON.stringify(currentPage))
+      sessionStorage.setItem('chess-gl-items', JSON.stringify(itemsPerPage))
+    } catch {}
+  }, [filters, playerFilter, currentPage, itemsPerPage])
+
+  useEffect(() => {
+    async function fetchMin() {
+      const min = await getEarliestGameDate(players.map(p => p.username))
+      if (min) setMinDate(min)
+    }
+    fetchMin()
+  }, [playerUsernames])
 
   function updateFilter(key: keyof GameFilters, value: string) {
     setFilters(prev => {
@@ -48,31 +90,50 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
     setCurrentPage(1)
   }
 
-  const loadData = useCallback(async () => {
-    if (!username) return
-    setLoading(true)
-    try {
-      const [rows, pages] = await Promise.all([
-        fetchFilteredGames(username, filters, currentPage, itemsPerPage),
-        fetchFilteredGamePages(username, filters, itemsPerPage)
-      ])
-      setGames(rows)
-      setTotalPages(pages)
-    } catch (err) {
-      console.error('Failed to load games:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [username, filters, currentPage, itemsPerPage])
-
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    let cancelled = false
+    setLoading(true)
+
+    async function fetchAll() {
+      const usernamesToFetch = playerFilter === BOTH && players.length > 1
+        ? players.map(p => p.username)
+        : playerFilter ? [playerFilter] : []
+
+      if (usernamesToFetch.length === 0) {
+        if (!cancelled) { setAllGames([]); onGamesChange?.([]); setLoading(false) }
+        return
+      }
+
+      const allResults = await Promise.all(
+        usernamesToFetch.map(u => fetchFilteredGames(u, filters, 1, 10000))
+      )
+      const merged = allResults.flat().sort((a: any, b: any) => b.gd_end_time - a.gd_end_time)
+
+      if (!cancelled) {
+        setAllGames(merged)
+        onGamesChange?.(merged)
+        setLoading(false)
+      }
+    }
+
+    fetchAll().catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [playerFilter, playerUsernames, filters])
+
+  const displayGames = useMemo(() => {
+    const offset = (currentPage - 1) * itemsPerPage
+    return allGames.slice(offset, offset + itemsPerPage)
+  }, [allGames, currentPage, itemsPerPage])
+
+
+  const totalCount = allGames.length
+  const totalPages = Math.ceil(totalCount / itemsPerPage) || 1
 
   function handleSelectGame(row: any) {
+    const rowUsername = row.gd_player_username
     const game: ChessComGame = {
       url: row.gd_game_url,
-      pgn: row.gd_pgn,
+      pgn: '',
       time_control: row.gd_time_control,
       time_class: row.gd_time_class,
       end_time: row.gd_end_time,
@@ -96,7 +157,7 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
     ;(game as any)._gameId = row.gd_grid
     ;(game as any)._openingName = row.gd_opening_name
     ;(game as any)._ecoCode = row.gd_eco_code
-    onSelectGame(game)
+    onSelectGame(game, rowUsername)
   }
 
   function handleReset() {
@@ -109,28 +170,30 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
       <div className='overflow-x-auto'>
         <table className='w-full text-left text-xs'>
           <thead>
-            {/* Header row */}
             <tr className='border-b border-gray-200 text-gray-500'>
+              <th className='pb-1 pr-2 text-gray-400'>#</th>
               <th className='pb-1 pr-2'>Date</th>
+              <th className='pb-1 pr-2'>Player</th>
               <th className='pb-1 pr-2'>Color</th>
               <th className='pb-1 pr-2'>Opponent</th>
               <th className='pb-1 pr-2'>Opp. Rating</th>
               <th className='pb-1 pr-2'>Result</th>
-              <th className='pb-1 pr-2'>Time</th>
               <th className='pb-1 pr-2'>Opening</th>
               <th className='pb-1 pr-2'>ECO</th>
               <th className='pb-1'></th>
             </tr>
-            {/* Filter row */}
             <tr className='border-b border-gray-300 bg-gray-50'>
+              <td className='py-1 pr-2' />
               <td className='py-1 pr-2'>
-                <div className='flex gap-0.5'>
+                <div className='flex flex-col gap-0.5'>
                   <MyInput
                     type='date'
                     value={filters.dateFrom ?? ''}
                     onChange={e => updateFilter('dateFrom', e.target.value)}
                     overrideClass='w-28 text-xxs'
                     placeholder='From'
+                    min={minDate}
+                    max={TODAY}
                   />
                   <MyInput
                     type='date'
@@ -138,8 +201,19 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
                     onChange={e => updateFilter('dateTo', e.target.value)}
                     overrideClass='w-28 text-xxs'
                     placeholder='To'
+                    min={minDate}
+                    max={TODAY}
                   />
                 </div>
+              </td>
+              <td className='py-1 pr-2'>
+                {hasMultiple && (
+                  <MySelect
+                    options={playerFilterOptions}
+                    value={playerFilter}
+                    onChange={e => { setPlayerFilter(e.target.value); setCurrentPage(1) }}
+                  />
+                )}
               </td>
               <td className='py-1 pr-2'>
                 <MySelect
@@ -157,35 +231,45 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
                 />
               </td>
               <td className='py-1 pr-2'>
-                <div className='flex gap-0.5'>
-                  <MyInput
-                    type='number'
-                    value={filters.opponentRatingMin ?? ''}
-                    onChange={e => updateFilter('opponentRatingMin', e.target.value)}
-                    placeholder='Min'
-                    overrideClass='w-14'
-                  />
-                  <MyInput
-                    type='number'
-                    value={filters.opponentRatingMax ?? ''}
-                    onChange={e => updateFilter('opponentRatingMax', e.target.value)}
-                    placeholder='Max'
-                    overrideClass='w-14'
-                  />
-                </div>
+                {(() => {
+                  const rMin = filters.opponentRatingMin ?? ''
+                  const rMax = filters.opponentRatingMax ?? ''
+                  const overlap = rMin !== '' && rMax !== '' && Number(rMin) > Number(rMax)
+                  const cls = `w-16 rounded border px-1 py-0.5 text-xs text-gray-700 ${overlap ? 'border-red-400' : 'border-gray-300'}`
+                  return (
+                    <div className='flex flex-col gap-0.5'>
+                      <div className='flex items-center gap-1'>
+                        <span className='text-xs text-gray-500 w-7 text-right'>Min</span>
+                        <input
+                          type='text'
+                          inputMode='numeric'
+                          value={rMin}
+                          onChange={e => updateFilter('opponentRatingMin', e.target.value.replace(/\D/g, ''))}
+                          placeholder='Min'
+                          className={cls}
+                        />
+                      </div>
+                      <div className='flex items-center gap-1'>
+                        <span className='text-xs text-gray-500 w-7 text-right'>Max</span>
+                        <input
+                          type='text'
+                          inputMode='numeric'
+                          value={rMax}
+                          onChange={e => updateFilter('opponentRatingMax', e.target.value.replace(/\D/g, ''))}
+                          placeholder='Max'
+                          className={cls}
+                        />
+                      </div>
+                      {overlap && <span className='text-xs text-red-500 pl-8'>min &gt; max</span>}
+                    </div>
+                  )
+                })()}
               </td>
               <td className='py-1 pr-2'>
                 <MySelect
                   options={['', 'win', 'loss', 'draw']}
                   value={filters.result ?? ''}
                   onChange={e => updateFilter('result', e.target.value)}
-                />
-              </td>
-              <td className='py-1 pr-2'>
-                <MySelect
-                  options={['', 'bullet', 'blitz', 'rapid', 'daily']}
-                  value={filters.timeClass ?? ''}
-                  onChange={e => updateFilter('timeClass', e.target.value)}
                 />
               </td>
               <td className='py-1 pr-2'>
@@ -214,30 +298,35 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className='py-4 text-center text-xs text-gray-500'>
-                  Loading...
-                </td>
+                <td colSpan={10} className='py-4 text-center text-xs text-gray-500'>Loading...</td>
               </tr>
             )}
-            {!loading && games.length === 0 && (
+            {!loading && displayGames.length === 0 && (
               <tr>
-                <td colSpan={9} className='py-4 text-center text-xs text-gray-500'>
+                <td colSpan={10} className='py-4 text-center text-xs text-gray-500'>
                   No games found. Try adjusting your filters or populate games first.
                 </td>
               </tr>
             )}
-            {!loading && games.map((row) => {
+            {!loading && displayGames.map((row, index) => {
               const date = new Date(row.gd_end_time * 1000)
+              const dd = String(date.getDate()).padStart(2, '0')
+              const mm = String(date.getMonth() + 1).padStart(2, '0')
+              const yy = String(date.getFullYear()).slice(2)
+              const hh = String(date.getHours()).padStart(2, '0')
+              const min = String(date.getMinutes()).padStart(2, '0')
+              const dateStr = `${dd}/${mm}/${yy} ${hh}:${min}`
+              const gameNumber = (currentPage - 1) * itemsPerPage + index + 1
 
               return (
                 <tr
                   key={row.gd_grid}
-                  className='cursor-pointer border-b border-gray-100 hover:bg-blue-50'
+                  className={`cursor-pointer border-b border-gray-100 hover:bg-blue-50 ${row.gd_grid === lastAnalyzedGameId ? 'bg-yellow-50 outline outline-1 outline-yellow-300' : ''}`}
                   onClick={() => handleSelectGame(row)}
                 >
-                  <td className='py-1.5 pr-2 whitespace-nowrap'>
-                    {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </td>
+                  <td className='py-1.5 pr-2 text-gray-400 tabular-nums'>{gameNumber}</td>
+                  <td className='py-1.5 pr-2 whitespace-nowrap'>{dateStr}</td>
+                  <td className='py-1.5 pr-2'>{row.gd_player_username}</td>
                   <td className='py-1.5 pr-2'>
                     <span className={`inline-block h-3 w-3 rounded-full border border-gray-300 ${
                       row.gd_player_color === 'white' ? 'bg-white' : 'bg-gray-800'
@@ -248,17 +337,13 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
                   <td className={`py-1.5 pr-2 ${RESULT_STYLES[row.gd_player_result]}`}>
                     {row.gd_player_result}
                   </td>
-                  <td className='py-1.5 pr-2'>{row.gd_time_class}</td>
                   <td className='py-1.5 pr-2 max-w-40 truncate' title={row.gd_opening_name}>
                     {row.gd_opening_name || 'Unknown'}
                   </td>
                   <td className='py-1.5 pr-2 text-gray-400'>{row.gd_eco_code}</td>
                   <td className='py-1.5'>
                     <MyButton
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleSelectGame(row)
-                      }}
+                      onClick={(e) => { e.stopPropagation(); handleSelectGame(row) }}
                       overrideClass='text-xxs px-2 py-0.5 h-5'
                     >
                       Analyze
@@ -271,16 +356,12 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
         </table>
       </div>
 
-      {/* Pagination + rows per page */}
       <div className='mt-3 flex items-center justify-between'>
         <MySelect
           label='Rows'
           options={['10', '15', '25', '50']}
           value={String(itemsPerPage)}
-          onChange={e => {
-            setItemsPerPage(parseInt(e.target.value, 10))
-            setCurrentPage(1)
-          }}
+          onChange={e => { setItemsPerPage(parseInt(e.target.value, 10)); setCurrentPage(1) }}
         />
         {totalPages > 1 && (
           <MyPagination
@@ -290,7 +371,7 @@ export default function GameList({ username, onSelectGame }: GameListProps) {
           />
         )}
         <span className='text-xxs text-gray-400'>
-          Page {currentPage} of {totalPages}
+          Page {currentPage} of {totalPages} ({totalCount.toLocaleString()} games)
         </span>
       </div>
     </MyBox>

@@ -71,13 +71,27 @@ export default function MaintenancePanel({
   async function handlePopulate() {
     setPopulating(true)
     setPopulateResult(null)
+
+    const totalLimit = populateLimit === 'All' ? 0 : parseInt(populateLimit, 10)
+    const batchSize = 100
+    const accumulated = { processed: 0, skipped: 0, errors: 0 }
+
     try {
-      const numLimit = populateLimit === 'All' ? 0 : parseInt(populateLimit, 10)
-      const res = await deconstructGames(initialUsername, numLimit)
-      setPopulateResult(res)
+      while (true) {
+        const remaining = totalLimit > 0 ? totalLimit - accumulated.processed : batchSize
+        if (remaining <= 0) break
+
+        const res = await deconstructGames(initialUsername, Math.min(batchSize, remaining))
+        accumulated.processed += res.processed
+        accumulated.skipped += res.skipped
+        accumulated.errors += res.errors
+        setPopulateResult({ ...accumulated })
+
+        if (res.processed === 0) break
+      }
       onDeconComplete()
     } catch {
-      setPopulateResult({ processed: 0, skipped: 0, errors: 1 })
+      setPopulateResult({ ...accumulated, errors: accumulated.errors + 1 })
     } finally {
       setPopulating(false)
     }

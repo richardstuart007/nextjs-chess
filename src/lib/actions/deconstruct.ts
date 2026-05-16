@@ -3,11 +3,27 @@
 import { table_fetch } from 'nextjs-shared/table_fetch'
 import { table_write } from 'nextjs-shared/table_write'
 import { table_count } from 'nextjs-shared/table_count'
-import { parsePgnHeaders, countMoves, parsePlayedDate } from '../parsePgn'
+import { parsePgnHeaders, parsePgnOpening } from '../parsePgn'
 
 const RAW_TABLE = 'tgr_gamesraw'
 const DECON_TABLE = 'tgd_gamesdecon'
 const ECO_TABLE = 'tec_ecoreference'
+
+function normalizeTermination(raw: string | undefined): string {
+  if (!raw) return ''
+  const t = raw.toLowerCase()
+  if (t.includes('won by resignation'))   return 'Resignation'
+  if (t.includes('won on time'))          return 'Time'
+  if (t.includes('won by checkmate'))     return 'Checkmate'
+  if (t.includes('won - game abandoned')) return 'Abandoned'
+  if (t.includes('drawn by repetition'))   return 'Repetition'
+  if (t.includes('drawn by timeout'))      return 'Timeout'
+  if (t.includes('drawn by agreement'))    return 'Agreement'
+  if (t.includes('drawn by insufficient')) return 'Insufficient'
+  if (t.includes('drawn by stalemate'))    return 'Stalemate'
+  if (t.includes('drawn by 50-move'))      return '50 Moves'
+  return raw
+}
 
 /**
  * Get count of raw games not yet deconstructed
@@ -17,7 +33,7 @@ export async function getUndeconstructedCount(playerUsername: string): Promise<n
   const db = await sql()
   const result = await db.query({
     caller: 'getUndeconstructedCount',
-    query: `SELECT COUNT(*) FROM ${RAW_TABLE} r WHERE r.gr_player_username = $1 AND NOT EXISTS (SELECT 1 FROM ${DECON_TABLE} d WHERE d.gd_grid = r.gr_grid)`,
+    query: `SELECT COUNT(*) FROM ${RAW_TABLE} r WHERE r.gr_player_username = $1 AND r.gr_time_class = 'blitz' AND NOT EXISTS (SELECT 1 FROM ${DECON_TABLE} d WHERE d.gd_grid = r.gr_grid)`,
     params: [playerUsername.toLowerCase()],
     functionName: 'getUndeconstructedCount'
   })
@@ -52,7 +68,7 @@ export async function deconstructGames(
   const limitClause = limit > 0 ? `LIMIT ${limit}` : ''
   const result = await db.query({
     caller: 'deconstructGames',
-    query: `SELECT r.* FROM ${RAW_TABLE} r WHERE r.gr_player_username = $1 AND NOT EXISTS (SELECT 1 FROM ${DECON_TABLE} d WHERE d.gd_grid = r.gr_grid) ORDER BY r.gr_end_time DESC ${limitClause}`,
+    query: `SELECT r.* FROM ${RAW_TABLE} r WHERE r.gr_player_username = $1 AND r.gr_time_class = 'blitz' AND NOT EXISTS (SELECT 1 FROM ${DECON_TABLE} d WHERE d.gd_grid = r.gr_grid) ORDER BY r.gr_end_time DESC ${limitClause}`,
     params: [username],
     functionName: 'deconstructGames'
   })
@@ -76,8 +92,6 @@ export async function deconstructGames(
 
       // Parse PGN headers
       const headers = parsePgnHeaders(pgn)
-      const moveCount = countMoves(pgn)
-      const playedDate = parsePlayedDate(headers.utcDate)
 
       // Determine player side
       const whiteUsername = (rawData.white?.username ?? '').toLowerCase()
@@ -98,8 +112,6 @@ export async function deconstructGames(
         table: DECON_TABLE,
         columnValuePairs: [
           { column: 'gd_grid', value: row.gr_grid },
-          { column: 'gd_chesscom_uuid', value: row.gr_chesscom_uuid },
-          { column: 'gd_pgn', value: pgn },
           { column: 'gd_white_username', value: whiteUsername },
           { column: 'gd_black_username', value: blackUsername },
           { column: 'gd_white_rating', value: rawData.white?.rating ?? 0 },
@@ -112,14 +124,12 @@ export async function deconstructGames(
           { column: 'gd_time_class', value: rawData.time_class ?? '' },
           { column: 'gd_time_control', value: headers.timeControl },
           { column: 'gd_is_rated', value: rawData.rated ?? true },
-          { column: 'gd_termination', value: headers.termination },
+          { column: 'gd_termination', value: normalizeTermination(headers.termination) },
           { column: 'gd_end_time', value: row.gr_end_time },
-          { column: 'gd_played_date', value: playedDate ?? new Date(row.gr_end_time * 1000).toISOString().split('T')[0] },
-          { column: 'gd_move_count', value: moveCount },
           { column: 'gd_eco_code', value: headers.eco },
           { column: 'gd_opening_name', value: headers.openingName },
-          { column: 'gd_eco_url', value: headers.ecoUrl },
-          { column: 'gd_game_url', value: rawData.url ?? '' }
+          { column: 'gd_game_url', value: rawData.url ?? '' },
+          { column: 'gd_opening_moves', value: parsePgnOpening(pgn) }
         ]
       })
 

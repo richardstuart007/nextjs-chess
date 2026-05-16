@@ -6,7 +6,8 @@ import { Chessboard } from 'react-chessboard'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyButton } from 'nextjs-shared/MyButton'
 import MySelect from 'nextjs-shared/MySelect'
-import { ChessComGame, getPlayerResult, extractOpeningFromPgn } from '@/src/lib/chesscom'
+import { ChessComGame, getPlayerResult } from '@/src/lib/chesscom'
+import { parsePgnHeaders } from '@/src/lib/parsePgn'
 import { StockfishEngine, MoveEvaluation, STOCKFISH_DEFAULTS, InfiniteAnalysisUpdate } from '@/src/lib/stockfish'
 import { saveGameEvaluations, saveAnalysisLine, saveAnalysisTree } from '@/src/lib/actions/games'
 import {
@@ -54,8 +55,7 @@ export default function ChessBoardView({ game, gameId, username, stockfishDepth,
   const isFreeAnalysis = !game
   const playerColor = game ? getPlayerResult(game, username).color : 'white' as const
   const result = game ? getPlayerResult(game, username).result : ''
-  const opening = game ? extractOpeningFromPgn(game.pgn).name : ''
-  const eco = game ? extractOpeningFromPgn(game.pgn).eco : ''
+  const { openingName: opening, eco } = game?.pgn ? parsePgnHeaders(game.pgn) : { openingName: (game as any)?._openingName ?? '', eco: (game as any)?._ecoCode ?? '' }
 
   // Tree state
   const [tree, setTree] = useState<AnalysisTree | null>(null)
@@ -108,16 +108,27 @@ export default function ChessBoardView({ game, gameId, username, stockfishDepth,
       }
 
       const newTree = buildTree(history, fens, [])
+
+      const storedEvals = (game as any)._evaluations as MoveEvaluation[] | null
+      if (storedEvals && storedEvals.length > 0) {
+        for (let i = 0; i < Math.min(storedEvals.length, newTree.mainLine.length); i++) {
+          newTree.mainLine[i].evaluation = storedEvals[i]
+        }
+        setEvaluations(storedEvals)
+      } else {
+        setEvaluations([])
+      }
+
       setTree(newTree)
       setCurrentNode(null)
       setExplorationMode(true)
     } else {
-      // Free analysis: empty tree, start in explore mode
       const startFen = new Chess().fen()
       const newTree = buildTree([], [startFen], [])
       setTree(newTree)
       setCurrentNode(null)
       setExplorationMode(true)
+      setEvaluations([])
     }
     displayGame.current = new Chess()
     setBoardKey(k => k + 1)
@@ -394,10 +405,14 @@ export default function ChessBoardView({ game, gameId, username, stockfishDepth,
     if (!explorationMode || !tree) return false
 
     const g = new Chess(displayGame.current.fen())
+    const piece = g.get(sourceSquare as Square)
+    const isPromotion = piece?.type === 'p' &&
+      ((piece.color === 'w' && targetSquare[1] === '8') ||
+       (piece.color === 'b' && targetSquare[1] === '1'))
     const moveResult = g.move({
       from: sourceSquare as Square,
       to: targetSquare as Square,
-      promotion: 'q' // auto-promote to queen for now
+      ...(isPromotion && { promotion: 'q' })
     })
 
     if (!moveResult) return false
