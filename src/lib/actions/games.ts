@@ -184,7 +184,7 @@ export async function getDeconGameCount(playerUsername: string): Promise<number>
 
 import { fetchFiltered } from 'nextjs-shared/fetchFiltered'
 import { fetchTotalPages } from 'nextjs-shared/fetchTotalPages'
-import { Filter } from 'nextjs-shared/tableFetchUtils'
+import type { Filter } from 'nextjs-shared/structures'
 
 const ITEMS_PER_PAGE = 25
 
