@@ -7,10 +7,12 @@ import MySelect from 'nextjs-shared/MySelect'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyConfirmDialog, ConfirmDialogInt } from 'nextjs-shared/MyConfirmDialog'
 import { MyLoadingMessage } from 'nextjs-shared/MyLoadingMessage'
+import { MyHelp } from 'nextjs-shared/MyHelp'
 import { deconstructGames } from '@/src/lib/actions/deconstruct'
 
 interface MaintenancePanelProps {
   username: string
+  players: { username: string; display_name: string | null }[]
   rawCount: number
   deconCount: number
   onSearch: (username: string) => void
@@ -30,6 +32,7 @@ const CONFIRM_INITIAL: ConfirmDialogInt = {
 
 export default function MaintenancePanel({
   username: initialUsername,
+  players,
   rawCount,
   deconCount,
   onSearch,
@@ -42,8 +45,6 @@ export default function MaintenancePanel({
   const [username, setUsername] = useState(initialUsername)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogInt>(CONFIRM_INITIAL)
 
-  // Populate state
-  const [populateLimit, setPopulateLimit] = useState('100')
   const [populating, setPopulating] = useState(false)
   const [populateResult, setPopulateResult] = useState<{ processed: number; skipped: number; errors: number } | null>(null)
 
@@ -71,22 +72,16 @@ export default function MaintenancePanel({
   async function handlePopulate() {
     setPopulating(true)
     setPopulateResult(null)
-
-    const totalLimit = populateLimit === 'All' ? 0 : parseInt(populateLimit, 10)
-    const batchSize = 100
+    const batchSize = 500
     const accumulated = { processed: 0, skipped: 0, errors: 0 }
 
     try {
       while (true) {
-        const remaining = totalLimit > 0 ? totalLimit - accumulated.processed : batchSize
-        if (remaining <= 0) break
-
-        const res = await deconstructGames(initialUsername, Math.min(batchSize, remaining))
+        const res = await deconstructGames(initialUsername, batchSize)
         accumulated.processed += res.processed
         accumulated.skipped += res.skipped
         accumulated.errors += res.errors
         setPopulateResult({ ...accumulated })
-
         if (res.processed === 0) break
       }
       onDeconComplete()
@@ -103,24 +98,35 @@ export default function MaintenancePanel({
     <>
       <MyBox title='Maintenance'>
         <div className='space-y-3'>
-          {/* Search */}
+          <MyHelp
+            label='Help'
+            title='Maintenance Help'
+            items={[
+              { heading: 'Fetch Statistics', body: 'Select a player and click to load their chess.com profile and show how many games are stored locally.' },
+              { heading: 'Download new games', body: 'Fetches only games added since the last sync from chess.com and saves them to the database.' },
+              { heading: 'Populate', body: 'Set the dropdown to All then click Populate — converts the raw downloaded games into the structured format used by the games list and analysis features.' },
+              { heading: 'Tip', body: 'Repeat for each player, then restart the dev server to clear the cache so updated totals appear everywhere.' },
+            ]}
+          />
+
+          {/* Player dropdown */}
           <div className='flex items-end gap-2'>
             <div>
-              <label htmlFor='username' className='mb-1 block text-xs text-gray-700'>
-                Chess.com Username
-              </label>
-              <MyInput
-                id='username'
-                type='text'
+              <label className='mb-1 block text-xs text-gray-700'>Player</label>
+              <select
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                placeholder='Enter chess.com username'
-                overrideClass='w-48'
-              />
+                className='rounded border border-gray-300 px-2 py-1 text-xs text-gray-700'
+              >
+                {players.map(p => (
+                  <option key={p.username} value={p.username}>
+                    {p.display_name ? `${p.display_name} (${p.username})` : p.username}
+                  </option>
+                ))}
+              </select>
             </div>
             <MyButton onClick={handleSubmit} disabled={loading}>
-              {loading ? 'Loading...' : 'Search'}
+              {loading ? 'Loading...' : 'Fetch Statistics'}
             </MyButton>
           </div>
 
@@ -129,60 +135,39 @@ export default function MaintenancePanel({
 
           {/* Raw games + sync controls */}
           {!loading && (
-            <div className='border-t border-gray-200 pt-2'>
-              <div className='flex items-center justify-between'>
-                <p className='text-xs text-gray-700'>
-                  Raw games: <span className='font-bold'>{rawCount.toLocaleString()}</span>
-                </p>
-                <div className='flex items-center gap-2'>
-                  <MyButton
-                    onClick={() => onSync('refresh')}
-                    disabled={syncing}
-                    overrideClass='text-xxs'
-                  >
-                    {syncing ? 'Syncing...' : 'Refresh'}
-                  </MyButton>
-                  <MyButton
-                    onClick={handleFullReplace}
-                    disabled={syncing}
-                    overrideClass='text-xxs bg-red-500 hover:bg-red-600'
-                  >
-                    Full Replace
-                  </MyButton>
-                </div>
-              </div>
+            <div className='border-t border-gray-200 pt-2 flex items-center gap-3'>
+              <p className='text-xs text-gray-700'>
+                Raw games: <span className='font-bold'>{rawCount.toLocaleString()}</span>
+              </p>
+              <MyButton
+                onClick={() => onSync('refresh')}
+                disabled={syncing}
+                overrideClass='text-xxs'
+              >
+                {syncing ? 'Downloading...' : 'Download new games'}
+              </MyButton>
             </div>
           )}
 
           {/* Deconstructed + populate controls */}
           {rawCount > 0 && !loading && (
             <div className='border-t border-gray-200 pt-2'>
-              <div className='flex items-center justify-between'>
-                <div>
-                  <p className='text-xs text-gray-700'>
-                    Deconstructed: <span className={`font-bold ${deconCount > 0 ? 'text-green-600' : ''}`}>
-                      {deconCount.toLocaleString()}
-                    </span>
-                    <span className='text-gray-400 ml-1'>
-                      ({remaining.toLocaleString()} remaining)
-                    </span>
-                  </p>
-                </div>
-                <div className='flex items-center gap-2'>
-                  <MySelect
-                    options={['10', '50', '100', '500', '1000', 'All']}
-                    value={populateLimit}
-                    onChange={e => setPopulateLimit(e.target.value)}
-                    className='w-16'
-                  />
-                  <MyButton
-                    onClick={handlePopulate}
-                    disabled={populating}
-                    overrideClass='text-xxs'
-                  >
-                    {populating ? 'Processing...' : 'Populate'}
-                  </MyButton>
-                </div>
+              <div className='flex items-center gap-3'>
+                <p className='text-xs text-gray-700'>
+                  Deconstructed: <span className={`font-bold ${deconCount > 0 ? 'text-green-600' : ''}`}>
+                    {deconCount.toLocaleString()}
+                  </span>
+                  <span className='text-gray-400 ml-1'>
+                    ({remaining.toLocaleString()} remaining)
+                  </span>
+                </p>
+                <MyButton
+                  onClick={handlePopulate}
+                  disabled={populating}
+                  overrideClass='text-xxs'
+                >
+                  {populating ? 'Processing...' : 'Populate'}
+                </MyButton>
               </div>
 
               {populateResult && (

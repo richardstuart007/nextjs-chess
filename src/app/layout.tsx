@@ -37,15 +37,17 @@ export default function RootLayout({
           </div>
         )}
         <header className='border-b border-gray-200 bg-white'>
-          <div className='mx-auto flex max-w-7xl items-center justify-between px-4 py-3'>
-            <h1 className='text-lg font-bold text-gray-900'>Chess Analyzer</h1>
+          <div className='flex items-center px-4 py-3 gap-8'>
+            <h1 className='text-lg font-bold text-gray-900 shrink-0'>Chess Analyzer</h1>
             <nav className='flex items-center gap-6 text-sm'>
               <a href='/' className='text-gray-600 hover:text-gray-900'>Dashboard</a>
+              <a href='/analysis/habits' className='text-gray-600 hover:text-gray-900'>Analysis</a>
               <a href='/maintenance' className='text-gray-600 hover:text-gray-900'>Maintenance</a>
+              <a href='/admin/maint/db-tools' className='text-gray-600 hover:text-gray-900'>Admin</a>
             </nav>
           </div>
         </header>
-        <main className='mx-auto w-full max-w-7xl flex-1 px-4 py-6'>
+        <main className='w-full flex-1 px-4 py-6'>
           {children}
         </main>
       </body>

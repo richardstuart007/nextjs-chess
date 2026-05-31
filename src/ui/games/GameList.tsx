@@ -51,7 +51,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
   })
   const [filters, setFilters] = useState<GameFilters>(() => ss('chess-gl-filters', { dateFrom: DEFAULT_DATE_FROM }))
   const [currentPage, setCurrentPage] = useState(() => ss('chess-gl-page', 1))
-  const [itemsPerPage, setItemsPerPage] = useState(() => ss('chess-gl-items', 15))
+  const [itemsPerPage, setItemsPerPage] = useState(() => { const v = ss<number>('chess-gl-items', 25); return v === 15 ? 25 : v })
   const [allGames, setAllGames] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [minDate, setMinDate] = useState<string | undefined>()
@@ -208,19 +208,23 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
               </td>
               <td className='py-1 pr-2'>
                 {hasMultiple && (
-                  <MySelect
-                    options={playerFilterOptions}
-                    value={playerFilter}
-                    onChange={e => { setPlayerFilter(e.target.value); setCurrentPage(1) }}
-                  />
+                  <div className='w-24'>
+                    <MySelect
+                      options={playerFilterOptions}
+                      value={playerFilter}
+                      onChange={e => { setPlayerFilter(e.target.value); setCurrentPage(1) }}
+                    />
+                  </div>
                 )}
               </td>
               <td className='py-1 pr-2'>
-                <MySelect
-                  options={['', 'white', 'black']}
-                  value={filters.color ?? ''}
-                  onChange={e => updateFilter('color', e.target.value)}
-                />
+                <div className='w-16'>
+                  <MySelect
+                    options={['', 'white', 'black']}
+                    value={filters.color ?? ''}
+                    onChange={e => updateFilter('color', e.target.value)}
+                  />
+                </div>
               </td>
               <td className='py-1 pr-2'>
                 <MyInput
@@ -266,18 +270,20 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                 })()}
               </td>
               <td className='py-1 pr-2'>
-                <MySelect
-                  options={['', 'win', 'loss', 'draw']}
-                  value={filters.result ?? ''}
-                  onChange={e => updateFilter('result', e.target.value)}
-                />
+                <div className='w-16'>
+                  <MySelect
+                    options={['', 'win', 'loss', 'draw']}
+                    value={filters.result ?? ''}
+                    onChange={e => updateFilter('result', e.target.value)}
+                  />
+                </div>
               </td>
               <td className='py-1 pr-2'>
                 <MyInput
                   value={filters.opening ?? ''}
                   onChange={e => updateFilter('opening', e.target.value)}
                   placeholder='Filter...'
-                  overrideClass='w-28'
+                  overrideClass='w-80'
                 />
               </td>
               <td className='py-1 pr-2'>
@@ -357,12 +363,14 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
       </div>
 
       <div className='mt-3 flex items-center justify-between'>
-        <MySelect
-          label='Rows'
-          options={['10', '15', '25', '50']}
-          value={String(itemsPerPage)}
-          onChange={e => { setItemsPerPage(parseInt(e.target.value, 10)); setCurrentPage(1) }}
-        />
+        <div className='w-24'>
+          <MySelect
+            label='Rows'
+            options={['10', '15', '25', '50']}
+            value={String(itemsPerPage)}
+            onChange={e => { setItemsPerPage(parseInt(e.target.value, 10)); setCurrentPage(1) }}
+          />
+        </div>
         {totalPages > 1 && (
           <MyPagination
             totalPages={totalPages}

@@ -11,7 +11,7 @@ export default async function DbToolsPage() {
   })
   const tables: string[] = result.rows.map((r: { tablename: string }) => r.tablename)
   return (
-    <div className='p-2'>
+    <div className='mx-4 my-4 border border-gray-300 rounded-lg p-4'>
       <h1 className='text-xl font-bold text-gray-900 mb-2'>Database Tools</h1>
       <DbToolsTabs tables={tables} baseDir={process.cwd().replace(/\\/g, '/')} />
     </div>

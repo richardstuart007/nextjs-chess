@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyButton } from 'nextjs-shared/MyButton'
 import MaintenancePanel from '@/src/ui/player/MaintenancePanel'
 import SyncProgress, { SyncProgressData } from '@/src/ui/player/SyncProgress'
-import { getPlayer, upsertPlayer } from '@/src/lib/actions/players'
+import { getPlayer, upsertPlayer, getPlayers } from '@/src/lib/actions/players'
 import { getGameCount, getDeconGameCount } from '@/src/lib/actions/games'
 import { initSync, syncArchive } from '@/src/lib/actions/sync'
 import { ChessComPlayer, fetchPlayer, fetchPlayerStats } from '@/src/lib/chesscom'
@@ -14,7 +14,12 @@ import { runCronSync } from '@/src/lib/actions/cron'
 
 
 export default function MaintenancePage() {
+  const [players, setPlayers] = useState<{ username: string; display_name: string | null }[]>([])
   const [player, setPlayer] = useState<ChessComPlayer | null>(null)
+
+  useEffect(() => {
+    getPlayers().then(setPlayers)
+  }, [])
   const [gameCount, setGameCount] = useState(0)
   const [deconCount, setDeconCount] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -150,8 +155,10 @@ export default function MaintenancePage() {
 
   return (
     <div className='space-y-4'>
+
       <MaintenancePanel
         username={player?.username ?? DEFAULT_PLAYER}
+        players={players}
         rawCount={gameCount}
         deconCount={deconCount}
         onSearch={handleSearch}
