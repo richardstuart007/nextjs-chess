@@ -229,7 +229,8 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
               <td className='py-1 pr-2'>
                 <MyInput
                   value={filters.opponent ?? ''}
-                  onChange={e => updateFilter('opponent', e.target.value)}
+                  onChange={e => updateFilter('opponent', e.target
+                  .target.value)}
                   placeholder='Filter...'
                   overrideClass='w-24'
                 />
@@ -333,20 +334,20 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                   <td className='py-1.5 pr-2 text-gray-400 tabular-nums'>{gameNumber}</td>
                   <td className='py-1.5 pr-2 whitespace-nowrap'>{dateStr}</td>
                   <td className='py-1.5 pr-2'>{row.gd_player_username}</td>
-                  <td className='py-1.5 pr-2'>
+                  <td className='py-1.5 pr-2 text-center'>
                     <span className={`inline-block h-3 w-3 rounded-full border border-gray-300 ${
                       row.gd_player_color === 'white' ? 'bg-white' : 'bg-gray-800'
                     }`} />
                   </td>
-                  <td className='py-1.5 pr-2'>{row.gd_opponent_username}</td>
-                  <td className='py-1.5 pr-2'>{row.gd_opponent_rating}</td>
-                  <td className={`py-1.5 pr-2 ${RESULT_STYLES[row.gd_player_result]}`}>
+                  <td className='py-1.5 pr-2 text-center'>{row.gd_opponent_username}</td>
+                  <td className='py-1.5 pr-2 text-center'>{row.gd_opponent_rating}</td>
+                  <td className={`py-1.5 pr-2 text-center ${RESULT_STYLES[row.gd_player_result]}`}>
                     {row.gd_player_result}
                   </td>
                   <td className='py-1.5 pr-2 max-w-40 truncate' title={row.gd_opening_name}>
                     {row.gd_opening_name || 'Unknown'}
                   </td>
-                  <td className='py-1.5 pr-2 text-gray-400'>{row.gd_eco_code}</td>
+                  <td className='py-1.5 pr-2 text-gray-400 text-center'>{row.gd_eco_code}</td>
                   <td className='py-1.5'>
                     <MyButton
                       onClick={(e) => { e.stopPropagation(); handleSelectGame(row) }}
