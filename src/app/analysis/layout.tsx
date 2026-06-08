@@ -3,10 +3,10 @@
 import { usePathname } from 'next/navigation'
 
 const TABS = [
-  { label: 'Habits',   href: '/analysis/habits'   },
-  { label: 'Quiz',     href: '/analysis/quiz'      },
-  { label: 'Briefing', href: '/analysis/briefing'  },
-  { label: 'Enrich',   href: '/analysis/enrich'    },
+  { label: 'Habits',   href: '/analysis/habits'    },
+  { label: 'Quiz',     href: '/analysis/quiz'       },
+  { label: 'Briefing', href: '/analysis/briefing'   },
+  { label: 'Stockfish', href: '/analysis/enrich'      },
 ]
 
 export default function AnalysisLayout({ children }: { children: React.ReactNode }) {

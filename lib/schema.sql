@@ -260,3 +260,20 @@ CREATE TABLE IF NOT EXISTS tqui_quiz (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tqui_session ON tqui_quiz(qui_session);
+
+-- tpip_pipelinelog: timing log for each pipeline batch run
+CREATE TABLE IF NOT EXISTS tpip_pipelinelog (
+  pip_pipid        SERIAL       PRIMARY KEY,
+  pip_step         SMALLINT     NOT NULL,
+  pip_step_name    VARCHAR(64)  NOT NULL DEFAULT '',
+  pip_date_from    VARCHAR(10)  DEFAULT NULL,
+  pip_date_to      VARCHAR(10)  DEFAULT NULL,
+  pip_start         INTEGER      NOT NULL DEFAULT 0,
+  pip_remaining     INTEGER      NOT NULL DEFAULT 0,
+  pip_finish         INTEGER      NOT NULL DEFAULT 0,
+  pip_attempted    INTEGER      NOT NULL DEFAULT 0,
+  pip_processed    INTEGER      NOT NULL DEFAULT 0,
+  pip_errors       INTEGER      NOT NULL DEFAULT 0,
+  pip_skipped      INTEGER      NOT NULL DEFAULT 0,
+  pip_duration_ms  INTEGER      NOT NULL DEFAULT 0
+);

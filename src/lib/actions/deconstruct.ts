@@ -4,6 +4,7 @@ import { table_fetch } from 'nextjs-shared/table_fetch'
 import { table_write } from 'nextjs-shared/table_write'
 import { table_count } from 'nextjs-shared/table_count'
 import { parsePgnHeaders, parsePgnOpening } from '../parsePgn'
+import { INCLUDED_TIME_CLASSES } from '../constants'
 
 const RAW_TABLE = 'tgr_gamesraw'
 const DECON_TABLE = 'tgd_gamesdecon'
@@ -31,10 +32,11 @@ function normalizeTermination(raw: string | undefined): string {
 export async function getUndeconstructedCount(playerUsername: string): Promise<number> {
   const { sql } = await import('nextjs-shared/db')
   const db = await sql()
+  const inPlaceholders = INCLUDED_TIME_CLASSES.map((_, i) => `$${i + 2}`).join(', ')
   const result = await db.query({
     caller: 'getUndeconstructedCount',
-    query: `SELECT COUNT(*) FROM ${RAW_TABLE} r WHERE r.gr_player_username = $1 AND r.gr_time_class = 'blitz' AND NOT EXISTS (SELECT 1 FROM ${DECON_TABLE} d WHERE d.gd_grid = r.gr_grid)`,
-    params: [playerUsername.toLowerCase()],
+    query: `SELECT COUNT(*) FROM ${RAW_TABLE} r WHERE r.gr_player_username = $1 AND r.gr_time_class IN (${inPlaceholders}) AND NOT EXISTS (SELECT 1 FROM ${DECON_TABLE} d WHERE d.gd_grid = r.gr_grid)`,
+    params: [playerUsername.toLowerCase(), ...INCLUDED_TIME_CLASSES],
     functionName: 'getUndeconstructedCount'
   })
   return Number(result.rows[0].count)
@@ -66,10 +68,11 @@ export async function deconstructGames(
   const db = await sql()
 
   const limitClause = limit > 0 ? `LIMIT ${limit}` : ''
+  const inPlaceholders = INCLUDED_TIME_CLASSES.map((_, i) => `$${i + 2}`).join(', ')
   const result = await db.query({
     caller: 'deconstructGames',
-    query: `SELECT r.* FROM ${RAW_TABLE} r WHERE r.gr_player_username = $1 AND r.gr_time_class = 'blitz' AND NOT EXISTS (SELECT 1 FROM ${DECON_TABLE} d WHERE d.gd_grid = r.gr_grid) ORDER BY r.gr_end_time DESC ${limitClause}`,
-    params: [username],
+    query: `SELECT r.* FROM ${RAW_TABLE} r WHERE r.gr_player_username = $1 AND r.gr_time_class IN (${inPlaceholders}) AND NOT EXISTS (SELECT 1 FROM ${DECON_TABLE} d WHERE d.gd_grid = r.gr_grid) ORDER BY r.gr_end_time DESC ${limitClause}`,
+    params: [username, ...INCLUDED_TIME_CLASSES],
     functionName: 'deconstructGames'
   })
 

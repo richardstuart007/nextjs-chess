@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { MyLoadingMessage } from 'nextjs-shared/MyLoadingMessage'
+import { MyButton } from 'nextjs-shared/MyButton'
 import ChessBoardView from '@/src/ui/board/ChessBoardView'
 import { ChessComGame } from '@/src/lib/chesscom'
 import { getGameById } from '@/src/lib/actions/games'
@@ -74,9 +75,9 @@ function AnalyzeContent() {
     return (
       <div className='text-center py-8'>
         <p className='text-red-600 text-sm'>{error}</p>
-        <button onClick={handleBack} className='mt-2 text-blue-500 underline text-sm'>
+        <MyButton onClick={handleBack} overrideClass='h-auto bg-transparent hover:bg-transparent text-blue-500 underline mt-2'>
           Back to games
-        </button>
+        </MyButton>
       </div>
     )
   }

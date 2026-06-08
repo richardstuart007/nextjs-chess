@@ -1,10 +1,22 @@
-'use client'
+﻿'use client'
 
 import { Suspense, useState, useEffect } from 'react'
 import { MyLoadingMessage } from 'nextjs-shared/MyLoadingMessage'
+import { MyHelp } from 'nextjs-shared/MyHelp'
+import { MyHelpField } from 'nextjs-shared/MyHelpField'
+import { MyButton } from 'nextjs-shared/MyButton'
+import { MyInput } from 'nextjs-shared/MyInput'
+import MySelect from 'nextjs-shared/MySelect'
 import EvalProgress from '@/src/ui/analysis/EvalProgress'
+
+const ENRICH_ITEMS = [
+  { heading: 'What this does',     body: 'Runs Stockfish (a chess engine) in your browser on each selected game. For every move it calculates how much worse your move was vs the best move, in centipawns (100 cp ≈ 1 pawn). Results are saved to the database.' },
+  { heading: 'What gets computed', body: 'Average CP loss, blunders (>200 cp), mistakes (>100 cp), the critical move (largest single drop), game phase of the critical moment (opening/middlegame/endgame), lead changes (volatility), and whether you lost on time from a winning position.' },
+  { heading: 'Keep this tab open', body: 'Stockfish runs entirely in this browser tab — do not close or navigate away until enrichment completes. Results power the Habits and Briefing pages.' },
+  { heading: 'Pipeline position',  body: 'Run this after syncing games from chess.com (Maintenance page). Then build the position tree and generate insights via the links on the Habits page.' },
+]
 import { getPlayers } from '@/src/lib/actions/players'
-import { getUnenrichedGamesForPlayer, type UnenrichedGame, type EnrichFilters } from '@/src/lib/analysis/db'
+import { getUnenrichedGamesForPlayer, type UnenrichedGame, type EnrichFilters } from '@/src/lib/analysis/chessdb'
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -101,7 +113,10 @@ function EnrichContent() {
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Game Enrichment</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">Stockfish Analysis</h1>
+          <MyHelp label='Help' title='Stockfish Analysis (ten_enrichment)' items={ENRICH_ITEMS} />
+        </div>
         <p className="text-gray-500 text-sm mt-1">
           Select games then run Stockfish in your browser to compute accuracy, blunders and more.
         </p>
@@ -114,75 +129,75 @@ function EnrichContent() {
           {/* Player */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Player</label>
-            <select value={selectedPlayer} onChange={e => setSelectedPlayer(e.target.value)}
-              className="w-full border rounded px-2 py-1.5 text-sm">
+            <MySelect value={selectedPlayer} onChange={e => setSelectedPlayer(e.target.value)}
+              overrideClass='w-full'>
               {players.map(p => (
                 <option key={p.username} value={p.username}>{p.display_name ?? p.username}</option>
               ))}
-            </select>
+            </MySelect>
           </div>
 
           {/* Color */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Color</label>
-            <select value={color} onChange={e => setColor(e.target.value as '' | 'white' | 'black')}
-              className="w-full border rounded px-2 py-1.5 text-sm">
+            <MySelect value={color} onChange={e => setColor(e.target.value as '' | 'white' | 'black')}
+              overrideClass='w-full'>
               <option value="">All</option>
               <option value="white">White</option>
               <option value="black">Black</option>
-            </select>
+            </MySelect>
           </div>
 
           {/* Date From */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Date from</label>
-            <input type="date" value={dateFrom} max={TODAY}
+            <MyInput type="date" value={dateFrom} max={TODAY}
               onChange={e => setDateFrom(e.target.value)}
-              className="w-full border rounded px-2 py-1.5 text-sm" />
+              overrideClass='w-full' />
           </div>
 
           {/* Date To */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Date to</label>
-            <input type="date" value={dateTo} max={TODAY}
+            <MyInput type="date" value={dateTo} max={TODAY}
               onChange={e => setDateTo(e.target.value)}
-              className="w-full border rounded px-2 py-1.5 text-sm" />
+              overrideClass='w-full' />
           </div>
 
           {/* Opening */}
           <div className="md:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Opening name</label>
-            <input type="text" value={opening} placeholder="e.g. Sicilian…"
+            <MyInput type="text" value={opening} placeholder="e.g. Sicilian…"
               onChange={e => setOpening(e.target.value)}
-              className="w-full border rounded px-2 py-1.5 text-sm" />
+              overrideClass='w-full' />
           </div>
 
           {/* ECO */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">ECO code</label>
-            <input type="text" value={eco} placeholder="e.g. B20"
+            <MyInput type="text" value={eco} placeholder="e.g. B20"
               onChange={e => setEco(e.target.value)}
-              className="w-full border rounded px-2 py-1.5 text-sm" />
+              overrideClass='w-full' />
           </div>
 
           {/* Depth */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Stockfish depth</label>
-            <input type="number" value={depth} min={8} max={24}
-              onChange={e => setDepth(Math.max(8, Math.min(24, parseInt(e.target.value) || 16)))}
-              className="w-full border rounded px-2 py-1.5 text-sm" />
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Stockfish depth <MyHelpField text="Depth 16 is recommended — good balance of speed and accuracy. Depth 20+ is more thorough but much slower. Depth 8–12 is fast but less reliable." />
+            </label>
+            <MyInput type="number" value={depth} min={8} max={24}
+              onChange={e => setDepth(Math.min(24, parseInt(e.target.value) || 16))}
+              overrideClass='w-full' />
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={handleLoad} disabled={loading || !selectedPlayer}
-            className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-900 text-sm font-medium disabled:opacity-50">
+          <MyButton onClick={handleLoad} disabled={loading || !selectedPlayer}>
             {loading ? 'Loading…' : 'Load games'}
-          </button>
-          <button onClick={handleReset}
-            className="px-3 py-1.5 border rounded text-sm text-gray-600 hover:bg-gray-50">
+          </MyButton>
+          <MyButton onClick={handleReset} overrideClass='bg-transparent hover:bg-gray-50 text-gray-600 border border-gray-300'>
             Reset filters
-          </button>
+          </MyButton>
         </div>
       </div>
 
@@ -195,9 +210,9 @@ function EnrichContent() {
               {allGames.length > 0 && <> · <strong>{selected.size}</strong> selected</>}
             </span>
             {allGames.length > 0 && (
-              <button onClick={toggleAll} className="text-xs text-blue-600 hover:underline">
+              <MyButton onClick={toggleAll} overrideClass='h-auto bg-transparent hover:bg-transparent text-blue-600 hover:underline'>
                 {selected.size === allGames.length ? 'Deselect all' : 'Select all'}
-              </button>
+              </MyButton>
             )}
           </div>
 
@@ -252,7 +267,7 @@ function EnrichContent() {
       {loaded && selectedGames.length > 0 && !done && (
         <div className="bg-white border rounded-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-sm">Run Stockfish Enrichment</h2>
+            <h2 className="font-semibold text-sm">Run Stockfish Analysis</h2>
             <span className="text-xs text-gray-500">
               depth {depth} · {selectedGames.length} game{selectedGames.length !== 1 ? 's' : ''}
             </span>
@@ -271,7 +286,7 @@ function EnrichContent() {
 
       {done && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-green-800 text-sm">
-          Enrichment complete. Visit{' '}
+          Stockfish analysis complete. Visit{' '}
           <a href="/analysis/habits" className="underline">Habits</a> or{' '}
           <a href="/analysis/briefing" className="underline">Briefing</a> to see the results.
         </div>

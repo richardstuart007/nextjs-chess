@@ -8,18 +8,23 @@ import MyBox from 'nextjs-shared/MyBox'
 import { MyConfirmDialog, ConfirmDialogInt } from 'nextjs-shared/MyConfirmDialog'
 import { MyLoadingMessage } from 'nextjs-shared/MyLoadingMessage'
 import { MyHelp } from 'nextjs-shared/MyHelp'
+import { MyHelpField } from 'nextjs-shared/MyHelpField'
+import SyncProgress, { SyncProgressData } from '@/src/ui/player/SyncProgress'
 import { deconstructGames } from '@/src/lib/actions/deconstruct'
 
 interface MaintenancePanelProps {
   username: string
   players: { username: string; display_name: string | null }[]
   rawCount: number
-  deconCount: number
+  undeconCount: number
+  ratings: { timeClass: string; rating: number }[]
   onSearch: (username: string) => void
   onSync: (type: 'full_replace' | 'refresh') => void
   onDeconComplete: () => void
+  onSyncComplete: () => void
   loading: boolean
   syncing: boolean
+  syncProgress: SyncProgressData | null
   error: string
 }
 
@@ -34,12 +39,15 @@ export default function MaintenancePanel({
   username: initialUsername,
   players,
   rawCount,
-  deconCount,
+  undeconCount,
+  ratings,
   onSearch,
   onSync,
   onDeconComplete,
+  onSyncComplete,
   loading,
   syncing,
+  syncProgress,
   error
 }: MaintenancePanelProps) {
   const [username, setUsername] = useState(initialUsername)
@@ -92,27 +100,31 @@ export default function MaintenancePanel({
     }
   }
 
-  const remaining = rawCount - deconCount
+  const deconCount = rawCount - undeconCount
 
   return (
     <>
-      <MyBox title='Maintenance'>
-        <div className='space-y-3'>
-          <MyHelp
-            label='Help'
-            title='Maintenance Help'
-            items={[
-              { heading: 'Fetch Statistics', body: 'Select a player and click to load their chess.com profile and show how many games are stored locally.' },
-              { heading: 'Download new games', body: 'Fetches only games added since the last sync from chess.com and saves them to the database.' },
-              { heading: 'Populate', body: 'Set the dropdown to All then click Populate — converts the raw downloaded games into the structured format used by the games list and analysis features.' },
-              { heading: 'Tip', body: 'Repeat for each player, then restart the dev server to clear the cache so updated totals appear everywhere.' },
-            ]}
-          />
+      {/* Header */}
+      <div className='flex items-center gap-2 mb-2'>
+        <h2 className='text-sm font-bold text-gray-800'>Maintenance</h2>
+        <MyHelp
+          label='Help'
+          title='Maintenance — complete flow'
+          items={[
+            { heading: 'Run steps 1–3 for each player',  body: 'Steps 1 to 3 must be completed for every player. Use Cron Sync (step 4) to do all players at once.' },
+            { heading: '1. Player Statistics (tplr_player_ratings)',           body: 'Per player. Click "Update Player Rating Statistics" to fetch the player\'s current ratings from chess.com and save them to the database. Also shows the current raw game and populated counts.' },
+            { heading: '2. New Games Download',           body: 'Per player. Pulls this month\'s new blitz and rapid games from chess.com. Writes to: tgr_gamesraw (one raw PGN row per game).' },
+            { heading: '3. Populate',                    body: 'Per player. Parses raw PGN rows into structured data. Writes to: tgd_gamesdecon (opening, ECO, result, ratings, termination) and tec_ecoreference. Until this runs, downloaded games are invisible to the games list and all analysis.' },
+            { heading: '4. Cron Sync',                   body: 'All players. Runs steps 1 (updates rating stats from the latest downloaded game), 2, and 3 automatically for every player. Use this for routine updates instead of repeating steps 1–3 manually.' },
+          ]}
+        />
+      </div>
 
-          {/* Player dropdown */}
+      {/* 1. Player Statistics (tplr_player_ratings) */}
+      <MyBox title='1. Player Statistics (tplr_player_ratings)'>
+        <div className='space-y-2'>
           <div className='flex items-end gap-2'>
             <div>
-              <label className='mb-1 block text-xs text-gray-700'>Player</label>
               <select
                 value={username}
                 onChange={e => setUsername(e.target.value)}
@@ -126,16 +138,29 @@ export default function MaintenancePanel({
               </select>
             </div>
             <MyButton onClick={handleSubmit} disabled={loading}>
-              {loading ? 'Loading...' : 'Fetch Statistics'}
+              {loading ? 'Loading...' : 'Update Player Rating Statistics'}
             </MyButton>
+            <MyHelpField text="Fetches the selected player's current ratings for each time class (blitz, rapid) from chess.com and saves them to the database (tplr_player_ratings). Also shows the current raw game count and how many have been Populated. Does not download or change any game data." />
           </div>
-
           {error && <p className='text-xs text-red-600'>{error}</p>}
           {loading && <MyLoadingMessage message1='Loading player...' />}
+          {!loading && ratings.length > 0 && (
+            <div className='flex items-center gap-4'>
+              {ratings.map(r => (
+                <p key={r.timeClass} className='text-xs text-gray-700 capitalize'>
+                  {r.timeClass}: <span className='font-bold'>{r.rating.toLocaleString()}</span>
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      </MyBox>
 
-          {/* Raw games + sync controls */}
-          {!loading && (
-            <div className='border-t border-gray-200 pt-2 flex items-center gap-3'>
+      {/* 2. New Games Download */}
+      {!loading && (
+        <MyBox title='2. New Games Download'>
+          <div className='space-y-2'>
+            <div className='flex items-center gap-3'>
               <p className='text-xs text-gray-700'>
                 Raw games: <span className='font-bold'>{rawCount.toLocaleString()}</span>
               </p>
@@ -144,44 +169,49 @@ export default function MaintenancePanel({
                 disabled={syncing}
                 overrideClass='text-xxs'
               >
-                {syncing ? 'Downloading...' : 'Download new games'}
+                {syncing ? 'Downloading...' : 'Download'}
               </MyButton>
+              <MyHelpField text="Downloads only this month's chess.com archive for this player. Games already in the database are skipped by date and UUID check. Only blitz and rapid games are stored — other time classes are ignored. Previous months are never re-checked; use a Full Replace if you need to rebuild from scratch." />
             </div>
-          )}
+            {syncProgress && (
+              <SyncProgress progress={syncProgress} onComplete={onSyncComplete} />
+            )}
+          </div>
+        </MyBox>
+      )}
 
-          {/* Deconstructed + populate controls */}
-          {rawCount > 0 && !loading && (
-            <div className='border-t border-gray-200 pt-2'>
-              <div className='flex items-center gap-3'>
-                <p className='text-xs text-gray-700'>
-                  Deconstructed: <span className={`font-bold ${deconCount > 0 ? 'text-green-600' : ''}`}>
-                    {deconCount.toLocaleString()}
-                  </span>
-                  <span className='text-gray-400 ml-1'>
-                    ({remaining.toLocaleString()} remaining)
-                  </span>
-                </p>
-                <MyButton
-                  onClick={handlePopulate}
-                  disabled={populating}
-                  overrideClass='text-xxs'
-                >
-                  {populating ? 'Processing...' : 'Populate'}
-                </MyButton>
-              </div>
-
-              {populateResult && (
-                <p className='text-xxs mt-1'>
-                  <span className='text-green-600 font-bold'>Processed: {populateResult.processed}</span>
-                  {populateResult.skipped > 0 && <span className='ml-2 text-gray-500'>Skipped: {populateResult.skipped}</span>}
-                  {populateResult.errors > 0 && <span className='ml-2 text-red-600'>Errors: {populateResult.errors}</span>}
-                </p>
-              )}
+      {/* 3. Populate */}
+      {rawCount > 0 && !loading && (
+        <MyBox title='3. Populate'>
+          <div className='space-y-1'>
+            <div className='flex items-center gap-3'>
+              <p className='text-xs text-gray-700'>
+                Deconstructed: <span className={`font-bold ${deconCount > 0 ? 'text-green-600' : ''}`}>
+                  {deconCount.toLocaleString()}
+                </span>
+                <span className='text-gray-400 ml-1'>
+                  ({undeconCount.toLocaleString()} remaining)
+                </span>
+              </p>
+              <MyButton
+                onClick={handlePopulate}
+                disabled={populating}
+                overrideClass='text-xxs'
+              >
+                {populating ? 'Processing...' : 'Populate'}
+              </MyButton>
+              <MyHelpField text='Parses raw PGN game data for this player and writes structured rows into the games table — extracting opening name, ECO code, result, player colours, ratings, and termination type. Until this is run, downloaded games are invisible to the games list, charts, and analysis features. Runs in batches of 500; click once and it repeats automatically until the remaining count reaches zero.' />
             </div>
-          )}
-
-        </div>
-      </MyBox>
+            {populateResult && (
+              <p className='text-xxs'>
+                <span className='text-green-600 font-bold'>Processed: {populateResult.processed}</span>
+                {populateResult.skipped > 0 && <span className='ml-2 text-gray-500'>Skipped: {populateResult.skipped}</span>}
+                {populateResult.errors > 0 && <span className='ml-2 text-red-600'>Errors: {populateResult.errors}</span>}
+              </p>
+            )}
+          </div>
+        </MyBox>
+      )}
 
       <MyConfirmDialog
         confirmDialog={confirmDialog}

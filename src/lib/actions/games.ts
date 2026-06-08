@@ -152,7 +152,7 @@ export async function getSavedAnalyses(gameId: number) {
     caller: 'getSavedAnalyses',
     table: SAVED_TABLE,
     whereColumnValuePairs: [{ column: 'sa_grid', value: gameId }],
-    orderBy: 'sa_created_at DESC'
+    orderBy: 'sa_id DESC'
   })
 }
 

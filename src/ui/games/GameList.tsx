@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyButton } from 'nextjs-shared/MyButton'
 import { MyInput } from 'nextjs-shared/MyInput'
@@ -12,7 +12,7 @@ import {
   getEarliestGameDate,
   GameFilters
 } from '@/src/lib/actions/games'
-import { DEFAULT_DATE_FROM, DEFAULT_PLAYER } from '@/src/lib/constants'
+import { DEFAULT_DATE_FROM } from '@/src/lib/constants'
 
 interface PlayerOption {
   username: string
@@ -24,6 +24,8 @@ interface GameListProps {
   onSelectGame: (game: ChessComGame, username: string) => void
   onGamesChange?: (games: any[]) => void
   lastAnalyzedGameId?: number
+  selectedPlayer?: string
+  onPlayerFilterChange?: (player: string) => void
 }
 
 const RESULT_STYLES: Record<string, string> = {
@@ -32,7 +34,7 @@ const RESULT_STYLES: Record<string, string> = {
   draw: 'text-gray-500 font-bold'
 }
 
-const BOTH = 'Both'
+const BOTH = ''
 
 const TODAY = new Date().toISOString().slice(0, 10)
 
@@ -40,15 +42,25 @@ function ss<T>(key: string, fallback: T): T {
   try { const v = sessionStorage.getItem(key); return v ? JSON.parse(v) as T : fallback } catch { return fallback }
 }
 
-export default function GameList({ players, onSelectGame, onGamesChange, lastAnalyzedGameId }: GameListProps) {
+export default function GameList({ players, onSelectGame, onGamesChange, lastAnalyzedGameId, selectedPlayer, onPlayerFilterChange }: GameListProps) {
   const hasMultiple = players.length > 1
   const playerFilterOptions = hasMultiple ? [BOTH, ...players.map(p => p.username)] : players.map(p => p.username)
 
   const [playerFilter, setPlayerFilter] = useState(() => {
     const saved = ss<string>('chess-gl-playerFilter', '')
-    return saved && (saved === BOTH || players.some(p => p.username === saved))
-      ? saved : (players.some(p => p.username === DEFAULT_PLAYER) ? DEFAULT_PLAYER : (hasMultiple ? BOTH : (players[0]?.username ?? '')))
+    if (saved === 'Both' || saved === '') return hasMultiple ? BOTH : (players[0]?.username ?? '')
+    if (players.some(p => p.username === saved)) return saved
+    return hasMultiple ? BOTH : (players[0]?.username ?? '')
   })
+
+  const lastExternalPlayer = useRef(selectedPlayer)
+  useEffect(() => {
+    if (selectedPlayer !== undefined && selectedPlayer !== lastExternalPlayer.current) {
+      lastExternalPlayer.current = selectedPlayer
+      setPlayerFilter(selectedPlayer)
+      setCurrentPage(1)
+    }
+  }, [selectedPlayer])
   const [filters, setFilters] = useState<GameFilters>(() => ss('chess-gl-filters', { dateFrom: DEFAULT_DATE_FROM }))
   const [currentPage, setCurrentPage] = useState(() => ss('chess-gl-page', 1))
   const [itemsPerPage, setItemsPerPage] = useState(() => { const v = ss<number>('chess-gl-items', 25); return v === 15 ? 25 : v })
@@ -95,9 +107,11 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
     setLoading(true)
 
     async function fetchAll() {
-      const usernamesToFetch = playerFilter === BOTH && players.length > 1
-        ? players.map(p => p.username)
-        : playerFilter ? [playerFilter] : []
+      const usernamesToFetch = players.length === 1
+        ? [players[0].username]
+        : playerFilter
+          ? [playerFilter]
+          : players.map(p => p.username)
 
       if (usernamesToFetch.length === 0) {
         if (!cancelled) { setAllGames([]); onGamesChange?.([]); setLoading(false) }
@@ -163,6 +177,10 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
   function handleReset() {
     setFilters({})
     setCurrentPage(1)
+    if (hasMultiple) {
+      setPlayerFilter(BOTH)
+      onPlayerFilterChange?.(BOTH)
+    }
   }
 
   return (
@@ -174,10 +192,11 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
               <th className='pb-1 pr-2 text-gray-400'>#</th>
               <th className='pb-1 pr-2'>Date</th>
               <th className='pb-1 pr-2'>Player</th>
-              <th className='pb-1 pr-2'>Color</th>
+              <th className='pb-1 pr-2 text-center'>Color</th>
+              <th className='pb-1 pr-2 text-center'>Time</th>
               <th className='pb-1 pr-2'>Opponent</th>
-              <th className='pb-1 pr-2'>Opp. Rating</th>
-              <th className='pb-1 pr-2'>Result</th>
+              <th className='pb-1 pr-2 text-center'>Opp. Rating</th>
+              <th className='pb-1 pr-2 text-center'>Result</th>
               <th className='pb-1 pr-2'>Opening</th>
               <th className='pb-1 pr-2'>ECO</th>
               <th className='pb-1'></th>
@@ -212,13 +231,13 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                     <MySelect
                       options={playerFilterOptions}
                       value={playerFilter}
-                      onChange={e => { setPlayerFilter(e.target.value); setCurrentPage(1) }}
+                      onChange={e => { setPlayerFilter(e.target.value); setCurrentPage(1); onPlayerFilterChange?.(e.target.value) }}
                     />
                   </div>
                 )}
               </td>
-              <td className='py-1 pr-2'>
-                <div className='w-16'>
+              <td className='py-1 pr-2 text-center'>
+                <div className='w-16 mx-auto'>
                   <MySelect
                     options={['', 'white', 'black']}
                     value={filters.color ?? ''}
@@ -226,11 +245,19 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                   />
                 </div>
               </td>
+              <td className='py-1 pr-2 text-center'>
+                <div className='w-16 mx-auto'>
+                  <MySelect
+                    options={['', 'blitz', 'rapid']}
+                    value={filters.timeClass ?? ''}
+                    onChange={e => updateFilter('timeClass', e.target.value)}
+                  />
+                </div>
+              </td>
               <td className='py-1 pr-2'>
                 <MyInput
                   value={filters.opponent ?? ''}
-                  onChange={e => updateFilter('opponent', e.target
-                  .target.value)}
+                  onChange={e => updateFilter('opponent', e.target.value)}
                   placeholder='Filter...'
                   overrideClass='w-24'
                 />
@@ -242,7 +269,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                   const overlap = rMin !== '' && rMax !== '' && Number(rMin) > Number(rMax)
                   const cls = `w-16 rounded border px-1 py-0.5 text-xs text-gray-700 ${overlap ? 'border-red-400' : 'border-gray-300'}`
                   return (
-                    <div className='flex flex-col gap-0.5'>
+                    <div className='flex flex-col gap-0.5 items-center'>
                       <div className='flex items-center gap-1'>
                         <span className='text-xs text-gray-500 w-7 text-right'>Min</span>
                         <input
@@ -270,8 +297,8 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                   )
                 })()}
               </td>
-              <td className='py-1 pr-2'>
-                <div className='w-16'>
+              <td className='py-1 pr-2 text-center'>
+                <div className='w-16 mx-auto'>
                   <MySelect
                     options={['', 'win', 'loss', 'draw']}
                     value={filters.result ?? ''}
@@ -305,12 +332,12 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={10} className='py-4 text-center text-xs text-gray-500'>Loading...</td>
+                <td colSpan={11} className='py-4 text-center text-xs text-gray-500'>Loading...</td>
               </tr>
             )}
             {!loading && displayGames.length === 0 && (
               <tr>
-                <td colSpan={10} className='py-4 text-center text-xs text-gray-500'>
+                <td colSpan={11} className='py-4 text-center text-xs text-gray-500'>
                   No games found. Try adjusting your filters or populate games first.
                 </td>
               </tr>
@@ -334,20 +361,25 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                   <td className='py-1.5 pr-2 text-gray-400 tabular-nums'>{gameNumber}</td>
                   <td className='py-1.5 pr-2 whitespace-nowrap'>{dateStr}</td>
                   <td className='py-1.5 pr-2'>{row.gd_player_username}</td>
-                  <td className='py-1.5 pr-2 text-center'>
-                    <span className={`inline-block h-3 w-3 rounded-full border border-gray-300 ${
-                      row.gd_player_color === 'white' ? 'bg-white' : 'bg-gray-800'
-                    }`} />
+                  <td className='py-1.5 pr-2'>
+                    <div className='flex justify-center'>
+                      <span className={`inline-block h-3 w-3 rounded-full border border-gray-300 ${
+                        row.gd_player_color === 'white' ? 'bg-white' : 'bg-gray-800'
+                      }`} />
+                    </div>
                   </td>
-                  <td className='py-1.5 pr-2 text-center'>{row.gd_opponent_username}</td>
-                  <td className='py-1.5 pr-2 text-center'>{row.gd_opponent_rating}</td>
-                  <td className={`py-1.5 pr-2 text-center ${RESULT_STYLES[row.gd_player_result]}`}>
-                    {row.gd_player_result}
+                  <td className='py-1.5 pr-2'><div className='flex justify-center text-gray-500'>{row.gd_time_class}</div></td>
+                  <td className='py-1.5 pr-2'>{row.gd_opponent_username}</td>
+                  <td className='py-1.5 pr-2'><div className='flex justify-center'>{row.gd_opponent_rating}</div></td>
+                  <td className='py-1.5 pr-2'>
+                    <div className={`flex justify-center ${RESULT_STYLES[row.gd_player_result]}`}>
+                      {row.gd_player_result}
+                    </div>
                   </td>
                   <td className='py-1.5 pr-2 max-w-40 truncate' title={row.gd_opening_name}>
                     {row.gd_opening_name || 'Unknown'}
                   </td>
-                  <td className='py-1.5 pr-2 text-gray-400 text-center'>{row.gd_eco_code}</td>
+                  <td className='py-1.5 pr-2 text-gray-400'>{row.gd_eco_code}</td>
                   <td className='py-1.5'>
                     <MyButton
                       onClick={(e) => { e.stopPropagation(); handleSelectGame(row) }}

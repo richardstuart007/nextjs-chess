@@ -1,10 +1,11 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useCallback } from 'react'
 import { Chess } from 'chess.js'
 import { StockfishEngine, type MoveEvaluation } from '@/src/lib/stockfish'
 import { saveStockfishResults } from '@/src/lib/analysis/enrichGames'
-import { saveEvaluation, getPositionsToEvaluate } from '@/src/lib/analysis/db'
+import { saveEvaluation, getPositionsToEvaluate } from '@/src/lib/analysis/chessdb'
+import { MyButton } from 'nextjs-shared/MyButton'
 
 // ============================================================================
 // EvalProgress — runs Stockfish in browser for batch enrichment / position eval
@@ -97,7 +98,6 @@ export default function EvalProgress({
         await saveStockfishResults({
           grid:        game.grid,
           player:      game.player,
-          pgn:         game.pgn,
           termination: game.termination,
           moveEvals
         })
@@ -171,19 +171,13 @@ export default function EvalProgress({
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         {!progress.running ? (
-          <button
-            onClick={handleStart}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
-          >
-            {mode === 'enrich' ? 'Start Enrichment' : 'Evaluate Positions'}
-          </button>
+          <MyButton onClick={handleStart}>
+            {mode === 'enrich' ? 'Start Stockfish Analysis' : 'Evaluate Positions'}
+          </MyButton>
         ) : (
-          <button
-            onClick={handleStop}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium"
-          >
+          <MyButton onClick={handleStop} overrideClass='bg-red-500 hover:bg-red-600'>
             Stop
-          </button>
+          </MyButton>
         )}
         <span className="text-sm text-gray-600">{progress.label}</span>
       </div>

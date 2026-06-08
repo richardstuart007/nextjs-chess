@@ -97,23 +97,39 @@ interface RatingChartProps {
 }
 
 export default function RatingChart({ games }: RatingChartProps) {
-  const playerNames = useMemo(() =>
-    [...new Set(games.map((g: any) => g.gd_player_username as string))].sort()
-  , [games])
+  // Derive unique (username, timeClass) series from the game data
+  const allSeries = useMemo(() => {
+    const seen = new Set<string>()
+    const pairs: { username: string; timeClass: string; key: string; label: string }[] = []
+    for (const g of games) {
+      const key = `${g.gd_player_username}__${g.gd_time_class}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        pairs.push({
+          username:  g.gd_player_username as string,
+          timeClass: g.gd_time_class as string,
+          key,
+          label: `${g.gd_player_username} (${g.gd_time_class})`
+        })
+      }
+    }
+    return pairs.sort((a, b) => a.label.localeCompare(b.label))
+  }, [games])
 
-  const allLabel = playerNames.length === 2 ? 'Both' : 'All'
-  const playerOptions = playerNames.length > 1 ? [allLabel, ...playerNames] : playerNames
+  const allLabel = allSeries.length === 2 ? 'Both' : 'All'
+  const filterOptions = allSeries.length > 1 ? [allLabel, ...allSeries.map(s => s.label)] : allSeries.map(s => s.label)
 
-  const [playerFilter, setPlayerFilter] = useState(playerNames.length > 1 ? allLabel : (playerNames[0] ?? ''))
+  const [seriesFilter, setSeriesFilter] = useState(allSeries.length > 1 ? allLabel : (allSeries[0]?.label ?? ''))
   const [granularityOverride, setGranularityOverride] = useState<RatingGranularity | null>(null)
 
   useEffect(() => {
-    setPlayerFilter(prev =>
-      prev === allLabel || playerNames.includes(prev) ? prev : (playerNames.length > 1 ? allLabel : (playerNames[0] ?? ''))
+    const labels = allSeries.map(s => s.label)
+    setSeriesFilter(prev =>
+      prev === allLabel || labels.includes(prev) ? prev : (allSeries.length > 1 ? allLabel : (allSeries[0]?.label ?? ''))
     )
-  }, [playerNames.join(','), allLabel])
+  }, [allSeries.map(s => s.key).join(','), allLabel])
 
-  const activePlayerNames = playerFilter === allLabel ? playerNames : [playerFilter].filter(Boolean)
+  const activeSeries = seriesFilter === allLabel ? allSeries : allSeries.filter(s => s.label === seriesFilter)
 
   const spanDays = useMemo(() => {
     if (games.length === 0) return 0
@@ -127,14 +143,15 @@ export default function RatingChart({ games }: RatingChartProps) {
     : defaultGran(spanDays)
 
   const series = useMemo(() =>
-    activePlayerNames.map(username => ({
-      username,
-      data: aggregateForPlayer(
-        games.filter((g: any) => g.gd_player_username === username),
+    activeSeries.map(s => ({
+      key:   s.key,
+      label: s.label,
+      data:  aggregateForPlayer(
+        games.filter((g: any) => g.gd_player_username === s.username && g.gd_time_class === s.timeClass),
         granularity
       )
     }))
-  , [games, activePlayerNames.join(','), granularity])
+  , [games, activeSeries.map(s => s.key).join(','), granularity])
 
   const { chartData, xTicks, fromMs, toMs, chartSpanDays } = useMemo(() => {
     const allDates = Array.from(
@@ -155,14 +172,14 @@ export default function RatingChart({ games }: RatingChartProps) {
     for (const s of series) {
       const map = new Map<string, number>()
       for (const point of s.data) map.set(point.date, point.avgRating)
-      lookup.set(s.username, map)
+      lookup.set(s.key, map)
     }
 
     const data = allDates.map(dateStr => {
       const point: Record<string, number> = { ts: parseDate(dateStr).getTime() }
       for (const s of series) {
-        const rating = lookup.get(s.username)?.get(dateStr)
-        if (rating !== undefined) point[s.username] = rating
+        const rating = lookup.get(s.key)?.get(dateStr)
+        if (rating !== undefined) point[s.key] = rating
       }
       return point
     })
@@ -193,15 +210,15 @@ export default function RatingChart({ games }: RatingChartProps) {
   return (
     <MyBox title='Rating Over Time (data from games selection)'>
       <div className='mb-1 flex flex-wrap items-center gap-3'>
-        {playerNames.length > 1 ? (
+        {allSeries.length > 1 ? (
           <MySelect
             label='Player'
-            options={playerOptions}
-            value={playerFilter}
-            onChange={e => setPlayerFilter(e.target.value)}
+            options={filterOptions}
+            value={seriesFilter}
+            onChange={e => setSeriesFilter(e.target.value)}
           />
         ) : (
-          <span className='text-xs text-gray-700'>{playerNames[0]}</span>
+          <span className='text-xs text-gray-700'>{allSeries[0]?.label}</span>
         )}
         <MySelect
           label='Granularity'
@@ -242,9 +259,10 @@ export default function RatingChart({ games }: RatingChartProps) {
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {series.map((s, i) => (
               <Line
-                key={s.username}
+                key={s.key}
                 type='monotone'
-                dataKey={s.username}
+                dataKey={s.key}
+                name={s.label}
                 stroke={PLAYER_COLORS[i % PLAYER_COLORS.length]}
                 dot={granularity === 'game' ? { r: 2 } : false}
                 strokeWidth={2}

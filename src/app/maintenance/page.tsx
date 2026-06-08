@@ -4,14 +4,13 @@ import { useState, useEffect } from 'react'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyButton } from 'nextjs-shared/MyButton'
 import MaintenancePanel from '@/src/ui/player/MaintenancePanel'
-import SyncProgress, { SyncProgressData } from '@/src/ui/player/SyncProgress'
-import { getPlayer, upsertPlayer, getPlayers } from '@/src/lib/actions/players'
-import { getGameCount, getDeconGameCount } from '@/src/lib/actions/games'
+import { SyncProgressData } from '@/src/ui/player/SyncProgress'
+import { getPlayer, upsertPlayer, getPlayers, upsertPlayerRating } from '@/src/lib/actions/players'
+import { getGameCount } from '@/src/lib/actions/games'
+import { getUndeconstructedCount } from '@/src/lib/actions/deconstruct'
 import { initSync, syncArchive } from '@/src/lib/actions/sync'
 import { ChessComPlayer, fetchPlayer, fetchPlayerStats } from '@/src/lib/chesscom'
-import { DEFAULT_PLAYER } from '@/src/lib/constants'
-import { runCronSync } from '@/src/lib/actions/cron'
-
+import { DEFAULT_PLAYER, INCLUDED_TIME_CLASSES } from '@/src/lib/constants'
 
 export default function MaintenancePage() {
   const [players, setPlayers] = useState<{ username: string; display_name: string | null }[]>([])
@@ -20,21 +19,22 @@ export default function MaintenancePage() {
   useEffect(() => {
     getPlayers().then(setPlayers)
   }, [])
-  const [gameCount, setGameCount] = useState(0)
-  const [deconCount, setDeconCount] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [syncing, setSyncing] = useState(false)
+
+  const [gameCount,    setGameCount]    = useState(0)
+  const [undeconCount, setUndeconCount] = useState(0)
+  const [ratings,      setRatings]      = useState<{ timeClass: string; rating: number }[]>([])
+  const [loading,      setLoading]      = useState(false)
+  const [syncing,      setSyncing]      = useState(false)
   const [syncProgress, setSyncProgress] = useState<SyncProgressData | null>(null)
-  const [error, setError] = useState('')
-  const [cronRunning, setCronRunning] = useState(false)
-  const [cronResult, setCronResult] = useState<{ players: { username: string; inserted: number; deconstructed: number }[] } | null>(null)
+  const [error,        setError]        = useState('')
 
   async function handleSearch(username: string) {
     setError('')
     setLoading(true)
     setPlayer(null)
     setGameCount(0)
-    setDeconCount(0)
+    setUndeconCount(0)
+    setRatings([])
 
     try {
       const [playerData, statsData] = await Promise.all([
@@ -46,22 +46,27 @@ export default function MaintenancePage() {
 
       const ratingsFlat: Record<string, number> = {}
       for (const [key, val] of Object.entries(statsData)) {
-        ratingsFlat[`rating_${key}`] = (val as any).last.rating
+        ratingsFlat[key] = (val as any).last.rating
       }
+
+      const ratingData = INCLUDED_TIME_CLASSES.map(tc => ({ timeClass: tc, rating: ratingsFlat[tc] ?? 0 }))
+      setRatings(ratingData)
 
       await upsertPlayer({
         username: playerData.username.toLowerCase(),
         avatar: playerData.avatar,
         display_name: playerData.name,
-        rating_blitz: ratingsFlat['rating_blitz']
       })
+      for (const { timeClass, rating } of ratingData) {
+        if (rating > 0) await upsertPlayerRating(playerData.username.toLowerCase(), timeClass, rating)
+      }
 
-      const [rawCount, decon] = await Promise.all([
+      const [rawCount, undecon] = await Promise.all([
         getGameCount(username),
-        getDeconGameCount(username)
+        getUndeconstructedCount(username)
       ])
       setGameCount(rawCount)
-      setDeconCount(decon)
+      setUndeconCount(undecon)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch player data')
     } finally {
@@ -112,6 +117,7 @@ export default function MaintenancePage() {
       }
 
       setSyncProgress(prev => prev ? { ...prev, status: 'completed' } : null)
+      setSyncing(false)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Sync failed'
       setError(msg)
@@ -132,24 +138,10 @@ export default function MaintenancePage() {
     }
   }
 
-  async function handleCronSync() {
-    setCronRunning(true)
-    setCronResult(null)
-    setError('')
-    try {
-      const result = await runCronSync()
-      setCronResult(result)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Cron sync failed')
-    } finally {
-      setCronRunning(false)
-    }
-  }
-
   async function handleDeconComplete() {
     if (player) {
-      const decon = await getDeconGameCount(player.username)
-      setDeconCount(decon)
+      const undecon = await getUndeconstructedCount(player.username)
+      setUndeconCount(undecon)
     }
   }
 
@@ -160,34 +152,17 @@ export default function MaintenancePage() {
         username={player?.username ?? DEFAULT_PLAYER}
         players={players}
         rawCount={gameCount}
-        deconCount={deconCount}
+        undeconCount={undeconCount}
+        ratings={ratings}
         onSearch={handleSearch}
         onSync={handleSync}
         onDeconComplete={handleDeconComplete}
+        onSyncComplete={handleSyncComplete}
         loading={loading}
         syncing={syncing}
+        syncProgress={syncProgress}
         error={error}
       />
-
-      {syncProgress && (
-        <SyncProgress progress={syncProgress} onComplete={handleSyncComplete} />
-      )}
-
-      <MyBox title='Cron Sync'>
-        <p className='text-xs text-gray-500 mb-2'>Refresh all players: sync new games, deconstruct, update ratings.</p>
-        <MyButton onClick={handleCronSync} disabled={cronRunning}>
-          {cronRunning ? 'Running...' : 'Run Cron Sync'}
-        </MyButton>
-        {cronResult && (
-          <div className='mt-2 text-xs text-gray-700 space-y-1'>
-            {cronResult.players.map(p => (
-              <div key={p.username}>
-                {p.username}: {p.inserted} inserted, {p.deconstructed} deconstructed
-              </div>
-            ))}
-          </div>
-        )}
-      </MyBox>
 
       {player && gameCount === 0 && !syncing && !loading && (
         <MyBox title='No Games Found'>

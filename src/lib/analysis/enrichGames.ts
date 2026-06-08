@@ -1,7 +1,7 @@
-'use server'
+﻿'use server'
 
 import { Chess } from 'chess.js'
-import { saveEnrichmentPartial, saveStockfishEnrichment, getUnenrichedGamesForPlayer } from './db'
+import { saveEnrichmentPartial, saveStockfishEnrichment, getUnenrichedGamesForPlayer } from './chessdb'
 
 // ============================================================================
 // Server-side enrichment: PGN-only fields (no Stockfish required)
@@ -80,7 +80,6 @@ export async function enrichGamesPartial(opts: {
 export async function saveStockfishResults(data: {
   grid: number
   player: string
-  pgn: string
   termination: string | null
   moveEvals: Array<{ fen: string; cp: number; isPlayerMove: boolean }>
 }): Promise<void> {

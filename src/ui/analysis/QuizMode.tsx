@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useState, useCallback } from 'react'
 import { Chess, type Square } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
-import { saveQuizResult } from '@/src/lib/analysis/db'
+import { saveQuizResult } from '@/src/lib/analysis/chessdb'
 
 interface QuizPosition {
   pos_fen: string

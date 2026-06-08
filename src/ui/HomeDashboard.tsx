@@ -9,7 +9,7 @@ import RatingChart from '@/src/ui/charts/RatingChart'
 import OpeningScoreChart from '@/src/ui/charts/OpeningScoreChart'
 import TerminationChart from '@/src/ui/charts/TerminationChart'
 import MyBox from 'nextjs-shared/MyBox'
-import { getPlayer } from '@/src/lib/actions/players'
+import { getPlayer, getPlayerRatings } from '@/src/lib/actions/players'
 import { ChessComGame } from '@/src/lib/chesscom'
 
 interface Player {
@@ -24,16 +24,28 @@ interface HomeDashboardProps {
 
 export default function HomeDashboard({ players, lastAnalyzedGameId }: HomeDashboardProps) {
   const router = useRouter()
-  const [dbPlayers, setDbPlayers] = useState<any[]>([])
+  const [dbPlayers,  setDbPlayers]  = useState<any[]>([])
+  const [dbRatings,  setDbRatings]  = useState<Record<string, Record<string, number>>>({})
   const [tab, setTab] = useState<'games' | 'graph' | 'openings' | 'endings'>(() => {
     try { return (sessionStorage.getItem('chess-tab') as any) ?? 'games' } catch { return 'games' }
   })
   const [sharedGames, setSharedGames] = useState<any[]>([])
+  const [selectedPlayer, setSelectedPlayer] = useState<string>('')
+
+  function handlePlayerProfileClick(username: string) {
+    setSelectedPlayer(prev => prev === username ? '' : username)
+  }
 
   useEffect(() => {
     async function loadAll() {
-      const results = await Promise.all(players.map(p => getPlayer(p.username)))
-      setDbPlayers(results)
+      const [playerResults, ratingResults] = await Promise.all([
+        Promise.all(players.map(p => getPlayer(p.username))),
+        Promise.all(players.map(p => getPlayerRatings(p.username)))
+      ])
+      setDbPlayers(playerResults)
+      const ratingsMap: Record<string, Record<string, number>> = {}
+      players.forEach((p, i) => { ratingsMap[p.username] = ratingResults[i] })
+      setDbRatings(ratingsMap)
     }
     loadAll()
   }, [players.map(p => p.username).join(',')])
@@ -64,11 +76,10 @@ export default function HomeDashboard({ players, lastAnalyzedGameId }: HomeDashb
 
   return (
     <div className='space-y-4'>
-      <div className='grid grid-cols-2 gap-3'>
+      <div className={players.length === 1 ? 'flex justify-center' : 'grid grid-cols-2 gap-3'}>
         {players.map((p, i) => {
-          const db = dbPlayers[i]
-          const ratings: Record<string, number> = {}
-          if (db?.pl_rating_blitz) ratings['blitz'] = db.pl_rating_blitz
+          const db      = dbPlayers[i]
+          const ratings = dbRatings[p.username] ?? {}
           return (
             <PlayerProfile
               key={p.username}
@@ -76,6 +87,8 @@ export default function HomeDashboard({ players, lastAnalyzedGameId }: HomeDashb
               displayName={db?.pl_display_name ?? undefined}
               avatar={db?.pl_avatar}
               ratings={Object.keys(ratings).length > 0 ? ratings : undefined}
+              onClick={players.length > 1 ? () => handlePlayerProfileClick(p.username) : undefined}
+              selected={players.length > 1 && selectedPlayer === p.username}
             />
           )
         })}
@@ -130,6 +143,8 @@ export default function HomeDashboard({ players, lastAnalyzedGameId }: HomeDashb
           onSelectGame={handleSelectGame}
           onGamesChange={setSharedGames}
           lastAnalyzedGameId={lastAnalyzedGameId}
+          selectedPlayer={selectedPlayer}
+          onPlayerFilterChange={setSelectedPlayer}
         />
       </div>
 

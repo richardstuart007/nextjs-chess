@@ -2,6 +2,7 @@
 
 import { table_delete } from 'nextjs-shared/table_delete'
 import { gameExists, insertRawGame, getLatestGameEndTime } from './games'
+import { INCLUDED_TIME_CLASSES } from '../constants'
 
 const GAMES_TABLE = 'tgr_gamesraw'
 
@@ -62,7 +63,7 @@ export async function syncArchive(params: {
 
     const { games } = await monthRes.json() as { games: any[] }
     const standardGames = games
-      .filter((g: any) => g.rules === 'chess' && g.pgn)
+      .filter((g: any) => g.rules === 'chess' && g.pgn && INCLUDED_TIME_CLASSES.includes(g.time_class))
       .sort((a: any, b: any) => a.end_time - b.end_time)
 
     let inserted = 0

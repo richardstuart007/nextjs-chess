@@ -9,7 +9,7 @@ Chess game analyser — Next.js, Vercel, Neon/Vercel Postgres, react-chessboard,
   - `.env.localprod`  → Neon cloud DB (production)
   - `.env`            → legacy local config (not used for dev)
 - **NEVER run `lib/migrate.ts`** — it contains `DROP TABLE` statements that destroy data
-- For new tables use additive SQL only (`CREATE TABLE IF NOT EXISTS`)
+- All database changes (CREATE, ALTER, DROP, etc.) are written as SQL scripts in `sql/` and run manually by the user via pgAdmin4 — see global CLAUDE.md for the full rule
 
 ## Dev server
 - Start: `npm run dev` (uses `.env.locallocal` automatically via nextjs-shared env injector)
@@ -38,8 +38,7 @@ Chess game analyser — Next.js, Vercel, Neon/Vercel Postgres, react-chessboard,
 - Provides: `sql()`, `table_fetch`, `table_write`, `table_update`, `table_count`, `fetchFiltered`, `fetchTotalPages`, `MyBox`, `MyButton`, `MyInput`, `MySelect`, `MyLoadingMessage`, `MyHourGlass`, `MyPagination`, `CopyTable`, `DatabaseTools`
 
 ## Coding rules
-- All new code in new files — never modify existing files to add new features
-- No `ALTER TABLE` on existing tables — create new tables instead
+- Table prefix uniqueness: the characters before the first `_` in a table name must be unique across the entire schema. Before creating a new table, verify no existing table uses the same prefix (e.g. `tpip` must not clash with `tpl` used by player tables)
 - New analysis files live under `src/lib/analysis/`, `src/app/analysis/`, `src/ui/analysis/`
 - Admin files live under `src/app/admin/`
 - DB queries use `nextjs-shared/db` → `sql()` → `db.query({ caller, query, params, functionName })`

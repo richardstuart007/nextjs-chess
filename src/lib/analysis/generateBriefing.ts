@@ -1,6 +1,6 @@
-'use server'
+﻿'use server'
 
-import { getBriefingData, saveBriefing, saveBriefingDetail } from './db'
+import { getBriefingData, saveBriefing, saveBriefingDetail } from './chessdb'
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-20250514'
 

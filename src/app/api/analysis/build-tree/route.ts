@@ -3,11 +3,13 @@ import { buildPositionTree } from '@/src/lib/analysis/buildPositionTree'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const limit  = Number(searchParams.get('limit')  ?? '100')
-  const player = searchParams.get('player') ?? undefined
+  const limit    = Number(searchParams.get('limit')  ?? '100')
+  const player   = searchParams.get('player')   ?? undefined
+  const dateFrom = searchParams.get('dateFrom') ?? undefined
+  const dateTo   = searchParams.get('dateTo')   ?? undefined
 
   try {
-    const result = await buildPositionTree({ limit, playerUsername: player })
+    const result = await buildPositionTree({ limit, playerUsername: player, dateFrom, dateTo })
     return NextResponse.json({ ok: true, ...result })
   } catch (err: any) {
     console.error('build-tree route error', err)

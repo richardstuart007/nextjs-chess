@@ -7,17 +7,24 @@ interface PlayerProfileProps {
   displayName?: string
   avatar?: string
   ratings?: Record<string, number>
+  onClick?: () => void
+  selected?: boolean
 }
 
 export default function PlayerProfile({
   username,
   displayName,
   avatar,
-  ratings
+  ratings,
+  onClick,
+  selected
 }: PlayerProfileProps) {
   return (
     <MyBox>
-      <div className='flex items-start gap-4'>
+      <div
+        className={`flex items-start gap-4 rounded ${onClick ? 'cursor-pointer hover:bg-blue-50' : ''} ${selected ? 'outline outline-2 outline-blue-400 rounded' : ''}`}
+        onClick={onClick}
+      >
         {avatar && (
           <img
             src={avatar}

@@ -1,7 +1,8 @@
-'use server'
+﻿'use server'
 
 import { Chess } from 'chess.js'
-import { upsertPosition, upsertMove, saveGamePosition, gamePositionExists } from './db'
+import { upsertPosition, upsertMove, saveGamePosition, gamePositionExists } from './chessdb'
+import { startPipelineLog, completePipelineLog } from '../actions/pipelineLog'
 
 const MAX_MOVE = 20
 
@@ -67,6 +68,8 @@ async function processGame(game: GameRecord): Promise<{ positions: number; moves
 export async function buildPositionTree(opts: {
   limit?: number
   playerUsername?: string
+  dateFrom?: string
+  dateTo?: string
 }): Promise<{
   gamesProcessed: number
   positions: number
@@ -78,16 +81,31 @@ export async function buildPositionTree(opts: {
 
   const limit = opts.limit ?? 100
   const params: any[] = []
-  let playerFilter = ''
+  const conditions: string[] = ['(r.gr_raw_data->>\'pgn\') IS NOT NULL']
+
+  // Skip games already fully recorded in the position tree
+  conditions.push(`NOT EXISTS (
+    SELECT 1 FROM tgam_game_positions
+    WHERE gam_game_ref = r.gr_chesscom_uuid
+      AND gam_player = r.gr_player_username
+  )`)
+
   if (opts.playerUsername) {
     params.push(opts.playerUsername.toLowerCase())
-    playerFilter = `AND r.gr_player_username = $${params.length}`
+    conditions.push(`r.gr_player_username = $${params.length}`)
   }
-  const limitClause = limit > 0 ? `LIMIT ${limit}` : ''
+  if (opts.dateFrom) {
+    params.push(Math.floor(new Date(opts.dateFrom).getTime() / 1000))
+    conditions.push(`r.gr_end_time >= $${params.length}`)
+  }
+  if (opts.dateTo) {
+    params.push(Math.floor(new Date(opts.dateTo + 'T23:59:59').getTime() / 1000))
+    conditions.push(`r.gr_end_time <= $${params.length}`)
+  }
 
-  // Query tgr_gamesraw directly — no JOIN to tgd_gamesdecon needed.
-  // tgd_gamesdecon only contains blitz games; tgr_gamesraw has all time classes.
-  // Player result is derived from the raw JSON (same logic as deconstructGames).
+  const limitClause = limit > 0 ? `LIMIT ${limit}` : ''
+  const whereClause = conditions.map(c => `(${c})`).join(' AND ')
+
   const gamesRes = await db.query({
     caller: 'buildPositionTree_fetch',
     query: `
@@ -108,8 +126,7 @@ export async function buildPositionTree(opts: {
           ELSE 'draw'
         END AS result
       FROM tgr_gamesraw r
-      WHERE (r.gr_raw_data->>'pgn') IS NOT NULL
-        ${playerFilter}
+      WHERE ${whereClause}
       ORDER BY r.gr_end_time DESC
       ${limitClause}
     `,
@@ -125,9 +142,35 @@ export async function buildPositionTree(opts: {
     chesscom_uuid:  r.chesscom_uuid
   }))
 
+  const fromTs   = opts.dateFrom ? Math.floor(new Date(opts.dateFrom).getTime() / 1000)                   : 0
+  const toTs     = opts.dateTo   ? Math.floor(new Date(opts.dateTo + 'T23:59:59').getTime() / 1000)       : 9999999999
+  const snapRes  = await db.query({
+    caller: 'buildPositionTree_snap',
+    query: `SELECT
+      (SELECT COUNT(*) FROM (
+         SELECT DISTINCT gp.gam_game_ref, gp.gam_player
+         FROM tgam_game_positions gp
+         JOIN tgr_gamesraw r ON r.gr_chesscom_uuid = gp.gam_game_ref AND r.gr_player_username = gp.gam_player
+         WHERE r.gr_end_time >= $1 AND r.gr_end_time <= $2
+       ) t) AS snap_processed,
+      (SELECT COUNT(*) FROM tgr_gamesraw r
+       WHERE (r.gr_raw_data->>'pgn') IS NOT NULL
+         AND r.gr_end_time >= $1 AND r.gr_end_time <= $2
+         AND NOT EXISTS (
+           SELECT 1 FROM tgam_game_positions
+           WHERE gam_game_ref = r.gr_chesscom_uuid AND gam_player = r.gr_player_username
+         )) AS snap_remaining`,
+    params:       [fromTs, toTs],
+    functionName: 'buildPositionTree'
+  })
+  const snapProcessed  = parseInt(snapRes.rows[0].snap_processed  ?? '0')
+  const snapRemaining  = parseInt(snapRes.rows[0].snap_remaining  ?? '0')
+
   let totalPositions = 0
   let totalMoves     = 0
   let errors         = 0
+  const t0           = Date.now()
+  const logId        = await startPipelineLog(3, 'Build Position Tree', games.length, snapProcessed, snapRemaining, opts.dateFrom, opts.dateTo)
 
   for (const game of games) {
     try {
@@ -140,6 +183,8 @@ export async function buildPositionTree(opts: {
     }
   }
 
+  const processed = games.length - errors
+  await completePipelineLog(logId, processed, errors, 0, Date.now() - t0, snapProcessed + processed)
   return {
     gamesProcessed: games.length,
     positions: totalPositions,

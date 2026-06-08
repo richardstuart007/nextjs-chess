@@ -1,6 +1,6 @@
-'use server'
+﻿'use server'
 
-import { getMovesForPosition, getEvaluationForPosition, updateGamePositionFlags } from './db'
+import { getMovesForPosition, getEvaluationForPosition, updateGamePositionFlags } from './chessdb'
 
 const HABIT_CP_THRESHOLD = 50
 
@@ -19,7 +19,7 @@ export async function detectMistakes(opts: { limit?: number }): Promise<{
       SELECT gam_id, gam_game_ref, gam_player, gam_pos_fen, gam_move_played, gam_move_num, gam_cp_loss
       FROM tgam_game_positions
       WHERE gam_is_habit IS NULL
-      ORDER BY gam_created DESC
+      ORDER BY gam_id DESC
       ${(opts.limit ?? 0) > 0 ? `LIMIT ${opts.limit}` : ''}
     `,
     params: [],
