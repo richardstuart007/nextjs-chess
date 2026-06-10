@@ -28,7 +28,7 @@ import MoveTree from './MoveTree'
 
 interface ChessBoardViewProps {
   game?: ChessComGame
-  gameId?: number
+  gameRef?: string
   username: string
   stockfishDepth?: number
   stockfishMultiPv?: number
@@ -51,7 +51,7 @@ function formatCp(cp: number): string {
   return cp > 0 ? `+${val}` : val
 }
 
-export default function ChessBoardView({ game, gameId, username, stockfishDepth, stockfishMultiPv, onStockfishDepthChange, onStockfishMultiPvChange, onBack }: ChessBoardViewProps) {
+export default function ChessBoardView({ game, gameRef, username, stockfishDepth, stockfishMultiPv, onStockfishDepthChange, onStockfishMultiPvChange, onBack }: ChessBoardViewProps) {
   const isFreeAnalysis = !game
   const playerColor = game ? getPlayerResult(game, username).color : 'white' as const
   const result = game ? getPlayerResult(game, username).result : ''
@@ -234,10 +234,10 @@ export default function ChessBoardView({ game, gameId, username, stockfishDepth,
       }
       setTree({ ...tree })
 
-      // Save evaluations to DB if we have a game ID
-      if (gameId) {
+      // Save evaluations to DB if we have a game ref and player
+      if (gameRef && username) {
         try {
-          await saveGameEvaluations(gameId, results)
+          await saveGameEvaluations(gameRef, username, results)
         } catch {
           // Non-critical — DB save failure doesn't block UI
         }

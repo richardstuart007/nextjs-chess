@@ -2,8 +2,21 @@
 
 import { table_fetch } from 'nextjs-shared/table_fetch'
 import { table_write } from 'nextjs-shared/table_write'
-import { table_update } from 'nextjs-shared/table_update'
 import { table_count } from 'nextjs-shared/table_count'
+
+export type GameEvalRow = {
+  san: string
+  fen: string
+  fenBefore: string
+  cp: number
+  cpBefore: number
+  bestMove: string
+  bestMoveSan: string
+  bestLineSans: string[]
+  cpLoss: number
+  classification: string
+  depth: number
+}
 
 const GAMES_TABLE = 'tgr_gamesraw'
 const DECON_TABLE = 'tgd_gamesdecon'
@@ -67,6 +80,7 @@ export async function insertRawGame(data: {
   player_username: string
   chesscom_uuid: string
   raw_data: object
+  pgn?: string | null
   end_time: number
   time_class: string
 }) {
@@ -77,22 +91,79 @@ export async function insertRawGame(data: {
       { column: 'gr_player_username', value: data.player_username.toLowerCase() },
       { column: 'gr_chesscom_uuid', value: data.chesscom_uuid },
       { column: 'gr_raw_data', value: JSON.stringify(data.raw_data) },
+      { column: 'gr_pgn', value: data.pgn ?? null },
       { column: 'gr_end_time', value: data.end_time },
       { column: 'gr_time_class', value: data.time_class }
     ]
   })
 }
 
-export async function saveGameEvaluations(gameId: number, evaluations: object[]) {
-  return table_update({
-    caller: 'saveGameEvaluations',
-    table: GAMES_TABLE,
-    columnValuePairs: [
-      { column: 'gr_evaluations', value: JSON.stringify(evaluations) },
-      { column: 'gr_is_analyzed', value: true }
-    ],
-    whereColumnValuePairs: [{ column: 'gr_grid', value: gameId }]
+//----------------------------------------------------------------------------------
+//  saveGameEvaluations — write per-move Stockfish evals from /analyze to tgev_game_evals
+//----------------------------------------------------------------------------------
+export async function saveGameEvaluations(gameRef: string, player: string, evaluations: GameEvalRow[]): Promise<void> {
+  const { sql } = await import('nextjs-shared/db')
+  const db = await sql()
+  const lowerPlayer = player.toLowerCase()
+  await db.query({
+    caller: 'saveGameEvaluations_delete',
+    query: 'DELETE FROM tgev_game_evals WHERE gev_game_ref = $1 AND gev_player = $2',
+    params: [gameRef, lowerPlayer],
+    functionName: 'saveGameEvaluations'
   })
+  for (let i = 0; i < evaluations.length; i++) {
+    const e = evaluations[i]
+    await db.query({
+      caller: 'saveGameEvaluations_insert',
+      query: `INSERT INTO tgev_game_evals (
+        gev_game_ref, gev_player, gev_move_num,
+        gev_san, gev_fen_before, gev_fen_after,
+        gev_cp, gev_cp_before, gev_cp_loss,
+        gev_best_move, gev_best_move_san, gev_best_line,
+        gev_classification, gev_depth
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      params: [
+        gameRef, lowerPlayer, i,
+        e.san, e.fenBefore, e.fen,
+        e.cp, e.cpBefore, e.cpLoss,
+        e.bestMove, e.bestMoveSan, JSON.stringify(e.bestLineSans),
+        e.classification, e.depth
+      ],
+      functionName: 'saveGameEvaluations'
+    })
+  }
+}
+
+//----------------------------------------------------------------------------------
+//  getGameEvals — fetch stored per-move evals from tgev_game_evals
+//----------------------------------------------------------------------------------
+export async function getGameEvals(gameRef: string, player: string): Promise<GameEvalRow[]> {
+  const { sql } = await import('nextjs-shared/db')
+  const db = await sql()
+  const res = await db.query({
+    caller: 'getGameEvals',
+    query: `SELECT gev_san, gev_fen_after, gev_fen_before,
+      gev_cp, gev_cp_before, gev_best_move, gev_best_move_san,
+      gev_best_line, gev_cp_loss, gev_classification, gev_depth
+      FROM tgev_game_evals
+      WHERE gev_game_ref = $1 AND gev_player = $2
+      ORDER BY gev_move_num`,
+    params: [gameRef, player.toLowerCase()],
+    functionName: 'getGameEvals'
+  })
+  return res.rows.map((r: any) => ({
+    san:           r.gev_san,
+    fen:           r.gev_fen_after,
+    fenBefore:     r.gev_fen_before,
+    cp:            r.gev_cp      ?? 0,
+    cpBefore:      r.gev_cp_before ?? 0,
+    bestMove:      r.gev_best_move    ?? '',
+    bestMoveSan:   r.gev_best_move_san ?? '',
+    bestLineSans:  Array.isArray(r.gev_best_line) ? r.gev_best_line : [],
+    cpLoss:        r.gev_cp_loss ?? 0,
+    classification: r.gev_classification ?? 'good',
+    depth:         r.gev_depth ?? 0
+  }))
 }
 
 // -----------------------------------------------------------------------

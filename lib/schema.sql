@@ -16,22 +16,22 @@ CREATE TABLE IF NOT EXISTS tpl_players (
   pl_rating_blitz INTEGER
 );
 
--- tgr_gamesraw: raw chess.com API response per game + analysis
+-- tgr_gamesraw: raw chess.com API response per game
 CREATE TABLE IF NOT EXISTS tgr_gamesraw (
   gr_grid            SERIAL PRIMARY KEY,
   gr_player_username VARCHAR(64) NOT NULL,
   gr_chesscom_uuid   VARCHAR(64) NOT NULL UNIQUE,
   gr_raw_data        JSONB NOT NULL,
+  gr_pgn             TEXT,
   gr_end_time        INTEGER NOT NULL,
   gr_time_class      VARCHAR(16),
-  gr_evaluations     JSONB,
-  gr_is_analyzed     BOOLEAN NOT NULL DEFAULT FALSE,
   gr_synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   gr_created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_tgr_player ON tgr_gamesraw(gr_player_username);
+CREATE INDEX IF NOT EXISTS idx_tgr_player  ON tgr_gamesraw(gr_player_username);
 CREATE INDEX IF NOT EXISTS idx_tgr_end_time ON tgr_gamesraw(gr_end_time DESC);
+CREATE INDEX IF NOT EXISTS idx_tgr_has_pgn  ON tgr_gamesraw(gr_grid) WHERE gr_pgn IS NOT NULL;
 
 -- tsa_savedanalyses: user-saved analysis branches
 CREATE TABLE IF NOT EXISTS tsa_savedanalyses (
@@ -99,16 +99,6 @@ CREATE TABLE tec_ecoreference (
 
 CREATE INDEX idx_tec_code ON tec_ecoreference(ec_eco_code);
 
--- tlg_logging: required by nextjs-shared write_Logging
-CREATE TABLE IF NOT EXISTS tlg_logging (
-  lg_lgid         SERIAL PRIMARY KEY,
-  lg_datetime     TIMESTAMPTZ,
-  lg_msg          TEXT,
-  lg_functionname VARCHAR(128),
-  lg_caller       VARCHAR(128),
-  lg_severity     VARCHAR(4)
-);
-
 -- ============================================================================
 -- Chess Analysis System — Phase 2 Schema
 -- New tables only — no existing tables altered
@@ -156,21 +146,6 @@ CREATE TABLE IF NOT EXISTS tpos_positions (
 
 CREATE INDEX IF NOT EXISTS idx_tpos_reached ON tpos_positions(pos_reached DESC);
 
--- tmov_moves: moves played from each position
-CREATE TABLE IF NOT EXISTS tmov_moves (
-  mov_id        SERIAL PRIMARY KEY,
-  mov_pos_fen   TEXT NOT NULL REFERENCES tpos_positions(pos_fen),
-  mov_san       TEXT NOT NULL,
-  mov_uci       TEXT NOT NULL,
-  mov_times     INTEGER DEFAULT 0,
-  mov_wins      INTEGER DEFAULT 0,
-  mov_losses    INTEGER DEFAULT 0,
-  mov_draws     INTEGER DEFAULT 0,
-  UNIQUE(mov_pos_fen, mov_san)
-);
-
-CREATE INDEX IF NOT EXISTS idx_tmov_pos ON tmov_moves(mov_pos_fen);
-
 -- teva_evaluations: Stockfish evaluations per position and move
 CREATE TABLE IF NOT EXISTS teva_evaluations (
   eva_id        SERIAL PRIMARY KEY,
@@ -200,18 +175,22 @@ CREATE INDEX IF NOT EXISTS idx_tins_priority ON tins_insights(ins_priority DESC)
 
 -- tgam_game_positions: per-game position hits
 CREATE TABLE IF NOT EXISTS tgam_game_positions (
-  gam_id          SERIAL PRIMARY KEY,
-  gam_game_ref    TEXT NOT NULL,
-  gam_player      TEXT NOT NULL,
-  gam_pos_fen     TEXT NOT NULL,
-  gam_move_played TEXT NOT NULL,
-  gam_move_num    INTEGER,
-  gam_cp_loss     INTEGER,
-  gam_is_habit    BOOLEAN,
-  gam_is_improved BOOLEAN,
-  gam_created     TIMESTAMPTZ DEFAULT NOW()
+  gam_id            SERIAL PRIMARY KEY,
+  gam_game_ref      TEXT NOT NULL,
+  gam_player        TEXT NOT NULL,
+  gam_pos_fen       TEXT NOT NULL,
+  gam_move_played   TEXT NOT NULL,
+  gam_move_uci      TEXT,
+  gam_resulting_fen TEXT,
+  gam_move_num      INTEGER,
+  gam_cp_loss       INTEGER,
+  gam_result        VARCHAR(5),
+  gam_is_habit      BOOLEAN,
+  gam_is_improved   BOOLEAN,
+  gam_created       TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tgam_game_pos ON tgam_game_positions(gam_game_ref, gam_player, gam_pos_fen);
 CREATE INDEX IF NOT EXISTS idx_tgam_player ON tgam_game_positions(gam_player);
 CREATE INDEX IF NOT EXISTS idx_tgam_game ON tgam_game_positions(gam_game_ref);
 CREATE INDEX IF NOT EXISTS idx_tgam_fen ON tgam_game_positions(gam_pos_fen);
@@ -260,6 +239,29 @@ CREATE TABLE IF NOT EXISTS tqui_quiz (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tqui_session ON tqui_quiz(qui_session);
+
+-- tgev_game_evals: per-move Stockfish evaluations from the /analyze single-game page
+CREATE TABLE IF NOT EXISTS tgev_game_evals (
+  gev_gevid          SERIAL      PRIMARY KEY,
+  gev_game_ref       VARCHAR(64) NOT NULL,
+  gev_player         VARCHAR(64) NOT NULL,
+  gev_move_num       SMALLINT    NOT NULL,
+  gev_san            TEXT        NOT NULL,
+  gev_fen_before     TEXT        NOT NULL,
+  gev_fen_after      TEXT        NOT NULL,
+  gev_cp             INTEGER,
+  gev_cp_before      INTEGER,
+  gev_cp_loss        INTEGER,
+  gev_best_move      TEXT,
+  gev_best_move_san  TEXT,
+  gev_best_line      JSONB,
+  gev_classification VARCHAR(12),
+  gev_depth          SMALLINT,
+  UNIQUE(gev_game_ref, gev_player, gev_move_num)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tgev_game   ON tgev_game_evals(gev_game_ref);
+CREATE INDEX IF NOT EXISTS idx_tgev_player ON tgev_game_evals(gev_player);
 
 -- tpip_pipelinelog: timing log for each pipeline batch run
 CREATE TABLE IF NOT EXISTS tpip_pipelinelog (

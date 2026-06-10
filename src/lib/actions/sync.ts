@@ -88,6 +88,7 @@ export async function syncArchive(params: {
         player_username: username,
         chesscom_uuid: uuid,
         raw_data: game,
+        pgn: game.pgn ?? null,
         end_time: game.end_time,
         time_class: game.time_class || ''
       })

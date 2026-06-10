@@ -6,7 +6,7 @@ import { MyLoadingMessage } from 'nextjs-shared/MyLoadingMessage'
 import { MyButton } from 'nextjs-shared/MyButton'
 import ChessBoardView from '@/src/ui/board/ChessBoardView'
 import { ChessComGame } from '@/src/lib/chesscom'
-import { getGameById } from '@/src/lib/actions/games'
+import { getGameById, getGameEvals } from '@/src/lib/actions/games'
 import { STOCKFISH_DEFAULTS } from '@/src/lib/stockfish'
 
 function AnalyzeContent() {
@@ -18,7 +18,7 @@ function AnalyzeContent() {
   const isFree = searchParams.get('mode') === 'free'
 
   const [game, setGame] = useState<ChessComGame | null>(null)
-  const [dbGameId, setDbGameId] = useState<number | undefined>(undefined)
+  const [gameRef, setGameRef] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -46,13 +46,12 @@ function AnalyzeContent() {
           ? JSON.parse(row.gr_raw_data)
           : row.gr_raw_data
 
+        const storedEvals = await getGameEvals(row.gr_chesscom_uuid, row.gr_player_username)
         setGame({
           ...raw,
-          _gameId: row.gr_grid,
-          _isAnalyzed: row.gr_is_analyzed,
-          _evaluations: row.gr_evaluations
+          _evaluations: storedEvals.length > 0 ? storedEvals : null
         } as ChessComGame)
-        setDbGameId(row.gr_grid)
+        setGameRef(row.gr_chesscom_uuid)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load game')
       } finally {
@@ -85,7 +84,7 @@ function AnalyzeContent() {
   return (
     <ChessBoardView
       game={isFree ? undefined : (game ?? undefined)}
-      gameId={dbGameId}
+      gameRef={gameRef}
       username={username}
       stockfishDepth={stockfishDepth}
       stockfishMultiPv={stockfishMultiPv}

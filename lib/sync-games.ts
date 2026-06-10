@@ -54,10 +54,10 @@ async function run() {
         // ON CONFLICT DO NOTHING handles any duplicate safely
         const result = await client.query(
           `INSERT INTO tgr_gamesraw
-             (gr_player_username, gr_chesscom_uuid, gr_raw_data, gr_end_time, gr_time_class)
-           VALUES ($1, $2, $3, $4, $5)
+             (gr_player_username, gr_chesscom_uuid, gr_raw_data, gr_pgn, gr_end_time, gr_time_class)
+           VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (gr_chesscom_uuid) DO NOTHING`,
-          [USERNAME, uuid, JSON.stringify(game), game.end_time, game.time_class ?? '']
+          [USERNAME, uuid, JSON.stringify(game), game.pgn ?? null, game.end_time, game.time_class ?? '']
         )
 
         if (result.rowCount === 1) {
