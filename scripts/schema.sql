@@ -22,9 +22,7 @@ CREATE TABLE IF NOT EXISTS tgr_gamesraw (
   gr_raw_data        JSONB NOT NULL,
   gr_pgn             TEXT,
   gr_end_time        INTEGER NOT NULL,
-  gr_time_class      VARCHAR(16),
-  gr_synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  gr_created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  gr_time_class      VARCHAR(16)
 );
 
 CREATE INDEX IF NOT EXISTS idx_tgr_player   ON tgr_gamesraw(gr_player_username);
@@ -73,8 +71,7 @@ CREATE TABLE tgd_gamesdecon (
   gd_eco_code          VARCHAR(8),
   gd_opening_name      TEXT,
   gd_game_url          TEXT,
-  gd_opening_moves     TEXT,
-  gd_created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  gd_opening_moves     TEXT
 );
 
 CREATE UNIQUE INDEX idx_tgd_grid     ON tgd_gamesdecon(gd_grid);

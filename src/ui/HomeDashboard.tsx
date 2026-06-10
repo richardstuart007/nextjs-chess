@@ -26,15 +26,20 @@ export default function HomeDashboard({ players, lastAnalyzedGameId }: HomeDashb
   const router = useRouter()
   const [dbPlayers,  setDbPlayers]  = useState<any[]>([])
   const [dbRatings,  setDbRatings]  = useState<Record<string, Record<string, number>>>({})
-  const [tab, setTab] = useState<'games' | 'graph' | 'openings' | 'endings'>(() => {
-    try { return (sessionStorage.getItem('chess-tab') as any) ?? 'games' } catch { return 'games' }
-  })
+  const [tab, setTab] = useState<'games' | 'graph' | 'openings' | 'endings'>('games')
   const [sharedGames, setSharedGames] = useState<any[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<string>('')
 
   function handlePlayerProfileClick(username: string) {
     setSelectedPlayer(prev => prev === username ? '' : username)
   }
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('chess-tab') as 'games' | 'graph' | 'openings' | 'endings' | null
+      if (saved) setTab(saved)
+    } catch {}
+  }, [])
 
   useEffect(() => {
     async function loadAll() {

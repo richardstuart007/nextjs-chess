@@ -55,7 +55,25 @@ export default function ChessBoardView({ game, gameRef, username, stockfishDepth
   const isFreeAnalysis = !game
   const playerColor = game ? getPlayerResult(game, username).color : 'white' as const
   const result = game ? getPlayerResult(game, username).result : ''
-  const { openingName: opening, eco } = game?.pgn ? parsePgnHeaders(game.pgn) : { openingName: (game as any)?._openingName ?? '', eco: (game as any)?._ecoCode ?? '' }
+  const { openingName: opening, eco, termination: rawTermination } = game?.pgn
+    ? parsePgnHeaders(game.pgn)
+    : { openingName: (game as any)?._openingName ?? '', eco: (game as any)?._ecoCode ?? '', termination: '' }
+
+  function normalizeTermination(raw: string): string {
+    const t = raw.toLowerCase()
+    if (t.includes('resignation'))  return 'Resignation'
+    if (t.includes('checkmate'))    return 'Checkmate'
+    if (t.includes('abandoned'))    return 'Abandoned'
+    if (t.includes('repetition'))   return 'Repetition'
+    if (t.includes('agreement'))    return 'Agreement'
+    if (t.includes('insufficient')) return 'Insufficient'
+    if (t.includes('stalemate'))    return 'Stalemate'
+    if (t.includes('50-move') || t.includes('50 move')) return '50 Moves'
+    if (t.includes('timeout'))      return 'Timeout'
+    if (t.includes('time'))         return 'Time'
+    return raw
+  }
+  const termination = normalizeTermination(rawTermination)
 
   // Tree state
   const [tree, setTree] = useState<AnalysisTree | null>(null)
@@ -638,6 +656,11 @@ export default function ChessBoardView({ game, gameRef, username, stockfishDepth
             </div>
           </div>
 
+          {/* Termination */}
+          {!isFreeAnalysis && termination && (
+            <div className='text-center text-xxs text-gray-500 py-0.5'>{termination}</div>
+          )}
+
           {/* Bottom player */}
           <div className='flex items-center justify-between rounded bg-green-50 border border-green-200 px-3 py-1.5 text-xs text-gray-900'>
             <span className='font-bold'>
@@ -687,16 +710,15 @@ export default function ChessBoardView({ game, gameRef, username, stockfishDepth
         <div className='xl:h-[520px] overflow-y-auto'>
           {tree && (
             <div className='h-full'>
-              <div className='flex items-center justify-between border-b border-gray-200 pb-1 mb-2'>
-                <h3 className='text-xs font-bold'>Moves</h3>
-                {!isFreeAnalysis && (
+              {!isFreeAnalysis && (
+                <div className='border-b border-gray-200 pb-1 mb-2'>
                   <span className='text-xs text-gray-500'>
                     {opening || 'Unknown'}
                     {eco && <span className='text-gray-400 ml-1'>({eco})</span>}
                     <span className='ml-1 text-gray-400'>{game?.time_class}</span>
                   </span>
-                )}
-              </div>
+                </div>
+              )}
               <MoveTree
                 tree={tree}
                 currentNode={currentNode}
@@ -737,12 +759,14 @@ export default function ChessBoardView({ game, gameRef, username, stockfishDepth
                   options={['10', '12', '14', '16', '18', '20', '22']}
                   value={String(stockfishDepth ?? STOCKFISH_DEFAULTS.depth)}
                   onChange={e => onStockfishDepthChange?.(parseInt(e.target.value, 10))}
+                  overrideClass='w-14'
                 />
                 <MySelect
                   label='Lines'
                   options={['1', '2', '3', '4', '5']}
                   value={String(stockfishMultiPv ?? STOCKFISH_DEFAULTS.multiPv)}
                   onChange={e => onStockfishMultiPvChange?.(parseInt(e.target.value, 10))}
+                  overrideClass='w-14'
                 />
               </div>
               {!isFreeAnalysis && !analyzing && (

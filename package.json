@@ -7,11 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate": "npx tsx lib/migrate.ts",
-    "sync-games": "npx tsx lib/sync-games.ts",
-    "deconstruct-games": "npx tsx lib/deconstruct-games.ts",
-    "backfill-opening-moves": "npx tsx lib/backfill-opening-moves.ts",
-    "cron-sync": "npx tsx lib/cron-sync.ts",
+    "cron-sync": "npx tsx scripts/cron-sync.ts",
     "locallocal": "set PORT=3020 && copy /Y .env.locallocal .env && next dev --turbopack",
     "localdev": "set PORT=3021 && copy /Y .env.localdev .env && next dev --turbopack",
     "localprod": "set PORT=3022 && copy /Y .env.localprod .env && next dev --turbopack"

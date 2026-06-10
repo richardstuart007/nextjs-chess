@@ -264,6 +264,7 @@ export type GameFilters = {
   opponentRatingMin?: number
   opponentRatingMax?: number
   result?: string
+  termination?: string[]
   color?: string
   timeClass?: string
   opening?: string
@@ -290,6 +291,9 @@ function buildFilters(username: string, filters: GameFilters): Filter[] {
   }
   if (filters.result) {
     result.push({ column: 'gd_player_result', operator: '=', value: filters.result })
+  }
+  if (filters.termination && filters.termination.length > 0) {
+    result.push({ column: 'gd_termination', operator: 'IN', value: filters.termination })
   }
   if (filters.color) {
     result.push({ column: 'gd_player_color', operator: '=', value: filters.color })

@@ -34,6 +34,48 @@ const RESULT_STYLES: Record<string, string> = {
   draw: 'text-gray-500 font-bold'
 }
 
+const TERMINATION_OPTIONS = ['Resignation', 'Checkmate', 'Time', 'Repetition', 'Agreement', 'Stalemate', 'Insufficient', '50 Moves', 'Timeout', 'Abandoned']
+
+function TerminationCheckboxFilter({ selected, onChange }: { selected: string[], onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
+
+  function toggle(v: string) {
+    onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v])
+  }
+
+  const label = selected.length === 0 ? 'All' : `${selected.length} selected`
+
+  return (
+    <div ref={ref} className='relative'>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className='text-xxs border border-gray-300 rounded px-1 py-0.5 bg-white w-20 text-left truncate hover:border-gray-400'
+      >
+        {label}
+      </button>
+      {open && (
+        <div className='absolute z-10 bg-white border border-gray-200 rounded shadow-md p-1 min-w-32 top-full left-0'>
+          {TERMINATION_OPTIONS.map(opt => (
+            <label key={opt} className='flex items-center gap-1 px-1 py-0.5 hover:bg-gray-50 cursor-pointer text-xxs whitespace-nowrap'>
+              <input type='checkbox' checked={selected.includes(opt)} onChange={() => toggle(opt)} className='h-3 w-3' />
+              {opt}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const BOTH = ''
 
 const TODAY = new Date().toISOString().slice(0, 10)
@@ -86,6 +128,15 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
     }
     fetchMin()
   }, [playerUsernames])
+
+  function updateTerminationFilter(terms: string[]) {
+    setFilters(prev => {
+      const next = { ...prev }
+      if (terms.length === 0) { delete next.termination } else { next.termination = terms }
+      return next
+    })
+    setCurrentPage(1)
+  }
 
   function updateFilter(key: keyof GameFilters, value: string) {
     setFilters(prev => {
@@ -197,6 +248,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
               <th className='pb-1 pr-2'>Opponent</th>
               <th className='pb-1 pr-2 text-center'>Opp. Rating</th>
               <th className='pb-1 pr-2 text-center'>Result</th>
+              <th className='pb-1 pr-2 text-center'>End</th>
               <th className='pb-1 pr-2'>Opening</th>
               <th className='pb-1 pr-2'>ECO</th>
               <th className='pb-1'></th>
@@ -306,6 +358,14 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                   />
                 </div>
               </td>
+              <td className='py-1 pr-2 text-center'>
+                <div className='mx-auto'>
+                  <TerminationCheckboxFilter
+                    selected={filters.termination ?? []}
+                    onChange={terms => updateTerminationFilter(terms)}
+                  />
+                </div>
+              </td>
               <td className='py-1 pr-2'>
                 <MyInput
                   value={filters.opening ?? ''}
@@ -332,12 +392,12 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={11} className='py-4 text-center text-xs text-gray-500'>Loading...</td>
+                <td colSpan={12} className='py-4 text-center text-xs text-gray-500'>Loading...</td>
               </tr>
             )}
             {!loading && displayGames.length === 0 && (
               <tr>
-                <td colSpan={11} className='py-4 text-center text-xs text-gray-500'>
+                <td colSpan={12} className='py-4 text-center text-xs text-gray-500'>
                   No games found. Try adjusting your filters or populate games first.
                 </td>
               </tr>
@@ -376,6 +436,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                       {row.gd_player_result}
                     </div>
                   </td>
+                  <td className='py-1.5 pr-2 text-center text-gray-500'>{row.gd_termination}</td>
                   <td className='py-1.5 pr-2 max-w-40 truncate' title={row.gd_opening_name}>
                     {row.gd_opening_name || 'Unknown'}
                   </td>
