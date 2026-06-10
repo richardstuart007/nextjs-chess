@@ -29,6 +29,7 @@ import MoveTree from './MoveTree'
 interface ChessBoardViewProps {
   game?: ChessComGame
   gameRef?: string
+  gameDbId?: number
   username: string
   stockfishDepth?: number
   stockfishMultiPv?: number
@@ -51,7 +52,7 @@ function formatCp(cp: number): string {
   return cp > 0 ? `+${val}` : val
 }
 
-export default function ChessBoardView({ game, gameRef, username, stockfishDepth, stockfishMultiPv, onStockfishDepthChange, onStockfishMultiPvChange, onBack }: ChessBoardViewProps) {
+export default function ChessBoardView({ game, gameRef, gameDbId, username, stockfishDepth, stockfishMultiPv, onStockfishDepthChange, onStockfishMultiPvChange, onBack }: ChessBoardViewProps) {
   const isFreeAnalysis = !game
   const playerColor = game ? getPlayerResult(game, username).color : 'white' as const
   const result = game ? getPlayerResult(game, username).result : ''
@@ -518,7 +519,7 @@ export default function ChessBoardView({ game, gameRef, username, stockfishDepth
 
     try {
       await saveAnalysisLine({
-        game_id: gameId,
+        game_id: gameDbId,
         title: `Variation at move ${path.length}`,
         line_pgn: pgn,
         line_moves: path.map(n => ({ san: n.san, from: n.from, to: n.to, fen: n.fen })),
@@ -558,7 +559,7 @@ export default function ChessBoardView({ game, gameRef, username, stockfishDepth
 
     try {
       await saveAnalysisTree({
-        game_id: gameId,
+        game_id: gameDbId,
         title: `Full analysis — ${new Date().toLocaleDateString()}`,
         tree_data: treeData
       })

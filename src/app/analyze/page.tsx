@@ -85,6 +85,7 @@ function AnalyzeContent() {
     <ChessBoardView
       game={isFree ? undefined : (game ?? undefined)}
       gameRef={gameRef}
+      gameDbId={gameId ? parseInt(gameId, 10) : undefined}
       username={username}
       stockfishDepth={stockfishDepth}
       stockfishMultiPv={stockfishMultiPv}
