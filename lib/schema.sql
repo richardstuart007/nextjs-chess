@@ -1,10 +1,8 @@
 -- ============================================================================
--- Chess Game Analyzer — Phase 1 Schema (Raw Storage)
+-- Chess Game Analyzer — Schema
 -- ============================================================================
--- Database: chessdb
+-- Database: local_chess / Neon production
 -- Naming: txx_name (tables), xx_column (columns)
--- IDs: xx_yid where yid is consistent across tables (e.g. gr_grid, sa_grid)
--- Run with: npm run migrate
 -- ============================================================================
 
 -- tpl_players: player profiles and ratings
@@ -29,11 +27,11 @@ CREATE TABLE IF NOT EXISTS tgr_gamesraw (
   gr_created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_tgr_player  ON tgr_gamesraw(gr_player_username);
+CREATE INDEX IF NOT EXISTS idx_tgr_player   ON tgr_gamesraw(gr_player_username);
 CREATE INDEX IF NOT EXISTS idx_tgr_end_time ON tgr_gamesraw(gr_end_time DESC);
 CREATE INDEX IF NOT EXISTS idx_tgr_has_pgn  ON tgr_gamesraw(gr_grid) WHERE gr_pgn IS NOT NULL;
 
--- tsa_savedanalyses: user-saved analysis branches
+-- tsa_savedanalyses: user-saved analysis branches from /analyze
 CREATE TABLE IF NOT EXISTS tsa_savedanalyses (
   sa_said          SERIAL PRIMARY KEY,
   sa_grid          INTEGER REFERENCES tgr_gamesraw(gr_grid) ON DELETE CASCADE,
@@ -52,7 +50,6 @@ CREATE TABLE IF NOT EXISTS tsa_savedanalyses (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tsa_game ON tsa_savedanalyses(sa_grid);
-
 
 -- tgd_gamesdecon: deconstructed game data extracted from raw
 DROP TABLE IF EXISTS tgd_gamesdecon CASCADE;
@@ -80,13 +77,13 @@ CREATE TABLE tgd_gamesdecon (
   gd_created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX idx_tgd_grid ON tgd_gamesdecon(gd_grid);
-CREATE INDEX idx_tgd_player ON tgd_gamesdecon(gd_player_username);
-CREATE INDEX idx_tgd_end_time ON tgd_gamesdecon(gd_end_time DESC);
-CREATE INDEX idx_tgd_eco ON tgd_gamesdecon(gd_eco_code);
-CREATE INDEX idx_tgd_opponent ON tgd_gamesdecon(gd_opponent_username);
-CREATE INDEX idx_tgd_result ON tgd_gamesdecon(gd_player_result);
-CREATE INDEX idx_tgd_time_class ON tgd_gamesdecon(gd_time_class);
+CREATE UNIQUE INDEX idx_tgd_grid     ON tgd_gamesdecon(gd_grid);
+CREATE INDEX idx_tgd_player          ON tgd_gamesdecon(gd_player_username);
+CREATE INDEX idx_tgd_end_time        ON tgd_gamesdecon(gd_end_time DESC);
+CREATE INDEX idx_tgd_eco             ON tgd_gamesdecon(gd_eco_code);
+CREATE INDEX idx_tgd_opponent        ON tgd_gamesdecon(gd_opponent_username);
+CREATE INDEX idx_tgd_result          ON tgd_gamesdecon(gd_player_result);
+CREATE INDEX idx_tgd_time_class      ON tgd_gamesdecon(gd_time_class);
 
 -- tec_ecoreference: ECO code to opening name lookup
 DROP TABLE IF EXISTS tec_ecoreference CASCADE;
@@ -98,147 +95,6 @@ CREATE TABLE tec_ecoreference (
 );
 
 CREATE INDEX idx_tec_code ON tec_ecoreference(ec_eco_code);
-
--- ============================================================================
--- Chess Analysis System — Phase 2 Schema
--- New tables only — no existing tables altered
--- ============================================================================
-
--- ten_enrichment: per-game enrichment data (separate from tgr_gamesraw)
-CREATE TABLE IF NOT EXISTS ten_enrichment (
-  en_enid              SERIAL PRIMARY KEY,
-  en_grid              INTEGER NOT NULL REFERENCES tgr_gamesraw(gr_grid) ON DELETE CASCADE,
-  en_player            VARCHAR(64) NOT NULL,
-  en_termination       TEXT,
-  en_time_loss_flag    CHAR(10),
-  en_final_cp          INTEGER,
-  en_volatility        INTEGER,
-  en_lead_changes      INTEGER,
-  en_max_advantage     INTEGER,
-  en_max_disadvantage  INTEGER,
-  en_phase_lost        CHAR(12),
-  en_critical_move     INTEGER,
-  en_critical_cp_drop  INTEGER,
-  en_critical_fen      TEXT,
-  en_avg_cp_loss       NUMERIC(6,1),
-  en_blunders          INTEGER,
-  en_mistakes          INTEGER,
-  en_accuracy          NUMERIC(5,1),
-  en_enriched          BOOLEAN DEFAULT FALSE,
-  en_created_at        TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(en_grid, en_player)
-);
-
-CREATE INDEX IF NOT EXISTS idx_ten_grid ON ten_enrichment(en_grid);
-CREATE INDEX IF NOT EXISTS idx_ten_player ON ten_enrichment(en_player);
-CREATE INDEX IF NOT EXISTS idx_ten_enriched ON ten_enrichment(en_enriched);
-
--- tpos_positions: unique chess positions reached (keyed by FEN)
-CREATE TABLE IF NOT EXISTS tpos_positions (
-  pos_id        SERIAL PRIMARY KEY,
-  pos_fen       TEXT NOT NULL UNIQUE,
-  pos_reached   INTEGER DEFAULT 0,
-  pos_color     CHAR(1),
-  pos_depth_avg NUMERIC(5,1),
-  pos_created   TIMESTAMPTZ DEFAULT NOW(),
-  pos_updated   TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_tpos_reached ON tpos_positions(pos_reached DESC);
-
--- teva_evaluations: Stockfish evaluations per position and move
-CREATE TABLE IF NOT EXISTS teva_evaluations (
-  eva_id        SERIAL PRIMARY KEY,
-  eva_pos_fen   TEXT NOT NULL,
-  eva_move_san  TEXT,
-  eva_cp        INTEGER,
-  eva_mate      INTEGER,
-  eva_best_move TEXT,
-  eva_depth     INTEGER DEFAULT 20,
-  eva_updated   TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(eva_pos_fen, eva_move_san)
-);
-
-CREATE INDEX IF NOT EXISTS idx_teva_pos ON teva_evaluations(eva_pos_fen);
-
--- tins_insights: AI-generated coaching insights per position
-CREATE TABLE IF NOT EXISTS tins_insights (
-  ins_id        SERIAL PRIMARY KEY,
-  ins_pos_fen   TEXT NOT NULL UNIQUE,
-  ins_theme     TEXT,
-  ins_advice    TEXT,
-  ins_priority  NUMERIC(8,2),
-  ins_updated   TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_tins_priority ON tins_insights(ins_priority DESC);
-
--- tgam_game_positions: per-game position hits
-CREATE TABLE IF NOT EXISTS tgam_game_positions (
-  gam_id            SERIAL PRIMARY KEY,
-  gam_game_ref      TEXT NOT NULL,
-  gam_player        TEXT NOT NULL,
-  gam_pos_fen       TEXT NOT NULL,
-  gam_move_played   TEXT NOT NULL,
-  gam_move_uci      TEXT,
-  gam_resulting_fen TEXT,
-  gam_move_num      INTEGER,
-  gam_cp_loss       INTEGER,
-  gam_result        VARCHAR(5),
-  gam_is_habit      BOOLEAN,
-  gam_is_improved   BOOLEAN,
-  gam_created       TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_tgam_game_pos ON tgam_game_positions(gam_game_ref, gam_player, gam_pos_fen);
-CREATE INDEX IF NOT EXISTS idx_tgam_player ON tgam_game_positions(gam_player);
-CREATE INDEX IF NOT EXISTS idx_tgam_game ON tgam_game_positions(gam_game_ref);
-CREATE INDEX IF NOT EXISTS idx_tgam_fen ON tgam_game_positions(gam_pos_fen);
-
--- tbre_briefings: briefing reports
-CREATE TABLE IF NOT EXISTS tbre_briefings (
-  bre_id         SERIAL PRIMARY KEY,
-  bre_player     TEXT NOT NULL,
-  bre_type       CHAR(1) NOT NULL,
-  bre_date_from  DATE NOT NULL,
-  bre_date_to    DATE NOT NULL,
-  bre_games_ct   INTEGER DEFAULT 0,
-  bre_mistakes   INTEGER DEFAULT 0,
-  bre_improved   INTEGER DEFAULT 0,
-  bre_narrative  TEXT,
-  bre_created    TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_tbre_player ON tbre_briefings(bre_player);
-
--- tbrd_briefing_detail: briefing detail rows
-CREATE TABLE IF NOT EXISTS tbrd_briefing_detail (
-  brd_id          SERIAL PRIMARY KEY,
-  brd_bre_id      INTEGER REFERENCES tbre_briefings(bre_id),
-  brd_pos_fen     TEXT NOT NULL,
-  brd_move_played TEXT NOT NULL,
-  brd_move_num    INTEGER,
-  brd_cp_loss     INTEGER,
-  brd_is_habit    BOOLEAN,
-  brd_is_improved BOOLEAN,
-  brd_game_ref    TEXT NOT NULL,
-  brd_player      TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_tbrd_briefing ON tbrd_briefing_detail(brd_bre_id);
-
--- tqui_quiz: quiz session tracking
-CREATE TABLE IF NOT EXISTS tqui_quiz (
-  qui_id          SERIAL PRIMARY KEY,
-  qui_session     TEXT NOT NULL,
-  qui_pos_fen     TEXT NOT NULL,
-  qui_move_played TEXT,
-  qui_correct     BOOLEAN,
-  qui_cp_loss     INTEGER,
-  qui_timestamp   TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_tqui_session ON tqui_quiz(qui_session);
 
 -- tgev_game_evals: per-move Stockfish evaluations from the /analyze single-game page
 CREATE TABLE IF NOT EXISTS tgev_game_evals (
@@ -262,20 +118,3 @@ CREATE TABLE IF NOT EXISTS tgev_game_evals (
 
 CREATE INDEX IF NOT EXISTS idx_tgev_game   ON tgev_game_evals(gev_game_ref);
 CREATE INDEX IF NOT EXISTS idx_tgev_player ON tgev_game_evals(gev_player);
-
--- tpip_pipelinelog: timing log for each pipeline batch run
-CREATE TABLE IF NOT EXISTS tpip_pipelinelog (
-  pip_pipid        SERIAL       PRIMARY KEY,
-  pip_step         SMALLINT     NOT NULL,
-  pip_step_name    VARCHAR(64)  NOT NULL DEFAULT '',
-  pip_date_from    VARCHAR(10)  DEFAULT NULL,
-  pip_date_to      VARCHAR(10)  DEFAULT NULL,
-  pip_start         INTEGER      NOT NULL DEFAULT 0,
-  pip_remaining     INTEGER      NOT NULL DEFAULT 0,
-  pip_finish         INTEGER      NOT NULL DEFAULT 0,
-  pip_attempted    INTEGER      NOT NULL DEFAULT 0,
-  pip_processed    INTEGER      NOT NULL DEFAULT 0,
-  pip_errors       INTEGER      NOT NULL DEFAULT 0,
-  pip_skipped      INTEGER      NOT NULL DEFAULT 0,
-  pip_duration_ms  INTEGER      NOT NULL DEFAULT 0
-);
