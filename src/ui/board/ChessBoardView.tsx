@@ -6,6 +6,7 @@ import { Chessboard } from 'react-chessboard'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyButton } from 'nextjs-shared/MyButton'
 import MySelect from 'nextjs-shared/MySelect'
+import { MyHelp } from 'nextjs-shared/MyHelp'
 import { ChessComGame, getPlayerResult } from '@/src/lib/chesscom'
 import { parsePgnHeaders } from '@/src/lib/parsePgn'
 import { StockfishEngine, MoveEvaluation, STOCKFISH_DEFAULTS, InfiniteAnalysisUpdate } from '@/src/lib/stockfish'
@@ -90,8 +91,6 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
   const [analysisError, setAnalysisError] = useState('')
   const engineRef = useRef<StockfishEngine | null>(null)
 
-  // Exploration mode
-  const [explorationMode, setExplorationMode] = useState(true)
   const [multiPvResults, setMultiPvResults] = useState<MultiPvResult[]>([])
   const [multiPvLoading, setMultiPvLoading] = useState(false)
 
@@ -140,13 +139,13 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
 
       setTree(newTree)
       setCurrentNode(null)
-      setExplorationMode(true)
+
     } else {
       const startFen = new Chess().fen()
       const newTree = buildTree([], [startFen], [])
       setTree(newTree)
       setCurrentNode(null)
-      setExplorationMode(true)
+
       setEvaluations([])
     }
     displayGame.current = new Chess()
@@ -214,11 +213,12 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
   // -----------------------------------------------------------------------
   // Auto-fetch multi-PV when navigating in exploration mode
   // -----------------------------------------------------------------------
-  // Clear multi-PV results when leaving exploration mode or navigating to a new position
+  // Clear multi-PV and deep analysis results when navigating to a new position
   useEffect(() => {
     setMultiPvResults([])
     setMultiPvLoading(false)
-  }, [currentNode, explorationMode])
+    setDeepAnalysisData(null)
+  }, [currentNode])
 
   // -----------------------------------------------------------------------
   // Run full-game Stockfish analysis
@@ -420,7 +420,7 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
   // Interactive board: handle piece drop
   // -----------------------------------------------------------------------
   function handlePieceDrop(sourceSquare: string, targetSquare: string): boolean {
-    if (!explorationMode || !tree) return false
+    if (!tree) return false
 
     const g = new Chess(displayGame.current.fen())
     const piece = g.get(sourceSquare as Square)
@@ -609,7 +609,7 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
   const inaccuracies = evaluations.filter(e => e.classification === 'inaccuracy').length
 
   return (
-    <div className='space-y-3'>
+    <div className='space-y-3 lg:w-[802px]'>
       {/* Header */}
       <MyBox>
         <div className='flex items-center justify-between'>
@@ -622,9 +622,9 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
         </div>
       </MyBox>
 
-      <div className='grid grid-cols-1 gap-3 xl:grid-cols-[auto_1fr_1fr] xl:items-start'>
-        {/* Column 1: Board */}
-        <div className='space-y-1'>
+      <div className='flex flex-col gap-3 lg:flex-row'>
+        {/* Column 1: Board + Analysis */}
+        <div className='space-y-1 w-fit'>
           {/* Top player */}
           <div className='flex items-center justify-between rounded bg-gray-600 px-3 py-1.5 text-xs text-white'>
             <span className='font-bold'>
@@ -649,7 +649,7 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
                 key={boardKey}
                 position={displayGame.current.fen()}
                 boardWidth={440}
-                arePiecesDraggable={explorationMode}
+                arePiecesDraggable={true}
                 onPieceDrop={handlePieceDrop}
                 boardOrientation={playerColor}
                 customSquareStyles={customSquareStyles}
@@ -657,25 +657,26 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
             </div>
           </div>
 
-          {/* Termination */}
-          {!isFreeAnalysis && termination && (
-            <div className='text-center text-xxs text-gray-500 py-0.5'>{termination}</div>
-          )}
-
           {/* Bottom player */}
-          <div className='flex items-center justify-between rounded bg-green-50 border border-green-200 px-3 py-1.5 text-xs text-gray-900'>
-            <span className='font-bold'>
-              {isFreeAnalysis ? 'White' : (
-                <>
-                  {playerColor === 'white' ? game!.white.username : game!.black.username}
-                  <span className='ml-1 font-normal text-blue-400'>
-                    ({playerColor === 'white' ? game!.white.rating : game!.black.rating})
-                  </span>
-                </>
-              )}
-            </span>
+          <div className='flex items-center rounded bg-green-50 border border-green-200 px-3 py-1.5 text-xs text-gray-900'>
+            <div className='flex-1'>
+              <span className='font-bold'>
+                {isFreeAnalysis ? 'White' : (
+                  <>
+                    {playerColor === 'white' ? game!.white.username : game!.black.username}
+                    <span className='ml-1 font-normal text-blue-400'>
+                      ({playerColor === 'white' ? game!.white.rating : game!.black.rating})
+                    </span>
+                  </>
+                )}
+              </span>
+            </div>
             {!isFreeAnalysis && (
-              <span className='text-red-600 font-bold'>{result === 'win' ? '1' : result === 'loss' ? '0' : '1/2'}</span>
+              <div className='flex items-center gap-2'>
+                {termination && <span className='text-blue-600'>{termination}</span>}
+                {game?.time_class && <span className='text-gray-400'>{game.time_class}</span>}
+                <span className='text-red-600 font-bold'>{result === 'win' ? '1' : result === 'loss' ? '0' : '1/2'}</span>
+              </div>
             )}
           </div>
 
@@ -705,34 +706,9 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
               )}
             </div>
           </div>
-        </div>
 
-        {/* Column 2: Moves */}
-        <div className='xl:h-[520px] overflow-y-auto'>
-          {tree && (
-            <div className='h-full'>
-              {!isFreeAnalysis && (
-                <div className='border-b border-gray-200 pb-1 mb-2'>
-                  <span className='text-xs text-gray-500'>
-                    {opening || 'Unknown'}
-                    {eco && <span className='text-gray-400 ml-1'>({eco})</span>}
-                    <span className='ml-1 text-gray-400'>{game?.time_class}</span>
-                  </span>
-                </div>
-              )}
-              <MoveTree
-                tree={tree}
-                currentNode={currentNode}
-                onSelectNode={handleSelectNode}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Column 3: Analysis */}
-        <div className='space-y-2'>
           {/* Stockfish settings */}
-          <MyBox title='Stockfish'>
+          <MyBox title='Stockfish' className='w-[440px]'>
             <div className='space-y-2'>
               {/* Summary */}
               <div className='flex items-center justify-between'>
@@ -741,88 +717,130 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
                     <span className='rounded bg-red-500 px-2 py-0.5 text-white'>{blunders} blunders</span>
                     <span className='rounded bg-orange-500 px-2 py-0.5 text-white'>{mistakes} mistakes</span>
                     <span className='rounded bg-yellow-400 px-2 py-0.5 text-black'>{inaccuracies} inaccuracies</span>
+                    <MyHelp title='Move quality' items={[
+                      { heading: 'Blunder (red)', body: 'A move that loses significant material or a winning position — typically a centipawn loss of 200+.' },
+                      { heading: 'Mistake (orange)', body: 'A clearly inferior move that misses a better option — typically 100–200 cp loss.' },
+                      { heading: 'Inaccuracy (yellow)', body: 'A suboptimal move that slightly worsens the position — typically 50–100 cp loss.' },
+                    ]} />
                   </div>
                 ) : (
                   <span className='text-xs text-gray-400'>No analysis yet</span>
                 )}
-                <MyButton
-                  onClick={() => setExplorationMode(!explorationMode)}
-                  overrideClass={`text-xxs ${explorationMode ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 hover:bg-gray-600'}`}
-                >
-                  {explorationMode ? 'Explore: ON' : 'Explore: OFF'}
-                </MyButton>
               </div>
 
               {/* Settings */}
-              <div className='flex items-center gap-4 border-t border-gray-200 pt-2'>
-                <MySelect
-                  label='Depth'
-                  options={['10', '12', '14', '16', '18', '20', '22']}
-                  value={String(stockfishDepth ?? STOCKFISH_DEFAULTS.depth)}
-                  onChange={e => onStockfishDepthChange?.(parseInt(e.target.value, 10))}
-                  overrideClass='w-14'
-                />
-                <MySelect
-                  label='Lines'
-                  options={['1', '2', '3', '4', '5']}
-                  value={String(stockfishMultiPv ?? STOCKFISH_DEFAULTS.multiPv)}
-                  onChange={e => onStockfishMultiPvChange?.(parseInt(e.target.value, 10))}
-                  overrideClass='w-14'
-                />
+              <div className='flex items-center gap-4'>
+                <div className='flex items-center gap-1'>
+                  <MySelect
+                    label='Depth'
+                    options={['10', '12', '14', '16', '18', '20', '22']}
+                    value={String(stockfishDepth ?? STOCKFISH_DEFAULTS.depth)}
+                    onChange={e => onStockfishDepthChange?.(parseInt(e.target.value, 10))}
+                    overrideClass='w-14 text-xxs'
+                  />
+                  <MyHelp title='Depth' text='How many half-moves (plies) ahead Stockfish searches. Higher depth = stronger analysis but slower. Depth 16 is a good balance for most games; use 20+ for critical positions.' />
+                </div>
+                <div className='flex items-center gap-1'>
+                  <MySelect
+                    label='Lines'
+                    options={['1', '2', '3', '4', '5']}
+                    value={String(stockfishMultiPv ?? STOCKFISH_DEFAULTS.multiPv)}
+                    onChange={e => onStockfishMultiPvChange?.(parseInt(e.target.value, 10))}
+                    overrideClass='w-14 text-xxs'
+                  />
+                  <MyHelp title='Lines' text='How many alternative continuations (MultiPV) Stockfish shows per position. More lines reveal more options to explore but each analysis takes longer. 3 lines is a good default.' />
+                </div>
               </div>
               {!isFreeAnalysis && !analyzing && (
-                <MyButton onClick={runAnalysis} overrideClass='w-full'>
-                  {evaluations.length > 0 ? `Re-analyze all (depth ${stockfishDepth ?? STOCKFISH_DEFAULTS.depth})` : 'Analyze all moves'}
-                </MyButton>
+                <div className='flex items-center gap-1'>
+                  <MyButton onClick={runAnalysis} overrideClass='text-xxs'>
+                    {evaluations.length > 0 ? 'Re-analyze all' : 'Analyze all moves'}
+                  </MyButton>
+                  <MyHelp title='Analyze all moves' text='Runs Stockfish on every move in the game at the selected depth and saves the results. Each move is classified (blunder / mistake / inaccuracy / good). Re-analyzing overwrites the previous results.' />
+                </div>
               )}
 
               {/* Deep analysis */}
-              <div className='border-t border-gray-200 pt-2'>
-                {!deepAnalyzing ? (
-                  <MyButton onClick={startDeepAnalysis} overrideClass='w-full bg-purple-600 hover:bg-purple-700'>
-                    Deep analyze this position
-                  </MyButton>
-                ) : (
-                  <div className='space-y-1'>
-                    <div className='flex items-center justify-between'>
+              <div className='space-y-1'>
+                <div className='flex items-center gap-1'>
+                  {!deepAnalyzing ? (
+                    <>
+                      <MyButton onClick={startDeepAnalysis} overrideClass='text-xxs bg-purple-600 hover:bg-purple-700'>
+                        {deepAnalysisData ? 'Re-analyze' : 'Deep analyze this position'}
+                      </MyButton>
+                      <MyHelp title='Deep analyze this position' text='Runs Stockfish continuously on the current board position, searching deeper and deeper until you click Stop. Shows live engine lines with centipawn scores. Use this for detailed study of a critical moment in the game.' />
+                    </>
+                  ) : (
+                    <>
                       <span className='text-xs font-bold text-purple-700'>
                         Depth: {deepAnalysisData?.depth ?? 0}
                       </span>
-                      <MyButton onClick={stopDeepAnalysis} overrideClass='text-xxs bg-red-500 hover:bg-red-600'>
+                      <MyButton onClick={stopDeepAnalysis} overrideClass='text-xxs bg-red-500 hover:bg-red-600 ml-2'>
                         Stop
                       </MyButton>
-                    </div>
-                    {deepAnalysisData && (
-                      <div className='text-xxs text-gray-500'>
-                        {(deepAnalysisData.nodes / 1000000).toFixed(1)}M nodes
-                        {' · '}
-                        {(deepAnalysisData.nps / 1000).toFixed(0)}k nps
-                        {' · '}
-                        {(deepAnalysisData.timeMs / 1000).toFixed(1)}s
-                      </div>
-                    )}
-                    {deepAnalysisData?.lines && deepAnalysisData.lines.length > 0 && (
-                      <div className='space-y-0.5 mt-1'>
-                        {deepAnalysisData.lines.map((line) => {
-                          const cpColor = line.cp < 0 ? 'text-red-600' : 'text-gray-900'
-                          const cpVal = Math.abs(line.cp) >= 10000
-                            ? (line.cp > 0 ? `M${10000 - line.cp}` : `-M${10000 + line.cp}`)
-                            : ((line.cp / 100).toFixed(1))
-                          const cpDisplay = line.cp > 0 ? `+${cpVal}` : cpVal
-                          return (
-                            <div key={line.rank} className='flex items-start gap-1 text-xxs'>
-                              <span className='text-gray-400 w-3'>{line.rank}.</span>
-                              <span className={`font-mono font-bold w-8 ${cpColor}`}>{cpDisplay}</span>
-                              <span className='font-bold'>{line.bestMoveSan}</span>
-                              <span className='text-gray-500 truncate'>
-                                {line.lineSans.slice(1).join(' ')}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                    </>
+                  )}
+                </div>
+                {deepAnalyzing && deepAnalysisData && (
+                  <div className='text-xxs text-gray-500'>
+                    {(deepAnalysisData.nodes / 1000000).toFixed(1)}M nodes
+                    {' · '}
+                    {(deepAnalysisData.nps / 1000).toFixed(0)}k nps
+                    {' · '}
+                    {(deepAnalysisData.timeMs / 1000).toFixed(1)}s
                   </div>
+                )}
+                {deepAnalysisData?.lines && deepAnalysisData.lines.length > 0 && (
+                  <div className='space-y-0.5 mt-1'>
+                    {deepAnalysisData.lines.map((line) => {
+                      const cpColor = line.cp < 0 ? 'text-red-600' : 'text-gray-900'
+                      const cpVal = Math.abs(line.cp) >= 10000
+                        ? (line.cp > 0 ? `M${10000 - line.cp}` : `-M${10000 + line.cp}`)
+                        : ((line.cp / 100).toFixed(1))
+                      const cpDisplay = line.cp > 0 ? `+${cpVal}` : cpVal
+                      return (
+                        <button
+                          key={line.rank}
+                          onClick={() => handleSelectPvLine(line)}
+                          className='flex w-full items-start gap-1 text-xxs hover:bg-blue-50 rounded px-0.5'
+                        >
+                          <span className='text-gray-400 w-3'>{line.rank}.</span>
+                          <span className={`font-mono font-bold w-8 ${cpColor}`}>{cpDisplay}</span>
+                          <span className='font-bold'>{line.bestMoveSan}</span>
+                          <span className='text-gray-500 truncate'>
+                            {line.lineSans.slice(1).join(' ')}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Engine lines */}
+              <div className='space-y-2'>
+                {!multiPvLoading && multiPvResults.length === 0 && (
+                  <div className='flex items-center gap-1'>
+                    <MyButton
+                      onClick={() => {
+                        const fen = currentNode?.fen ?? tree?.root.fen
+                        const played = currentNode?.children[0]?.san ?? ''
+                        if (fen) fetchMultiPv(fen, played)
+                      }}
+                      overrideClass='text-xxs bg-blue-600 hover:bg-blue-700'
+                    >
+                      Engine Lines
+                    </MyButton>
+                    <MyHelp title='Engine Lines' text='Asks Stockfish to evaluate the current position and show the top engine lines (number set by Lines). The move actually played in the game is highlighted so you can compare it to the engine suggestions.' />
+                  </div>
+                )}
+                {(multiPvLoading || multiPvResults.length > 0) && (
+                  <AlternativeLines
+                    results={multiPvResults}
+                    loading={multiPvLoading}
+                    positionPly={currentPly}
+                    onSelectLine={handleSelectPvLine}
+                  />
                 )}
               </div>
             </div>
@@ -830,7 +848,7 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
 
           {/* Progress */}
           {analyzing && (
-            <MyBox title='Analyzing...'>
+            <MyBox title='Analyzing...' className='w-[440px]'>
               <div className='space-y-2'>
                 <div className='h-2 w-full overflow-hidden rounded bg-gray-200'>
                   <div
@@ -849,40 +867,34 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
           )}
 
           {analysisError && (
-            <MyBox>
+            <MyBox className='w-[440px]'>
               <p className='text-xs text-red-600'>{analysisError}</p>
               <MyButton onClick={runAnalysis} overrideClass='mt-2'>Retry</MyButton>
             </MyBox>
           )}
+        </div>
 
-          {/* Engine lines */}
-          {explorationMode && (
-            <>
-              {!multiPvLoading && multiPvResults.length === 0 && (
-                <MyButton
-                  onClick={() => {
-                    // Analyse the position ON THE BOARD (after current move)
-                    const fen = currentNode?.fen ?? tree?.root.fen
-                    // Mark what was actually played next from this position
-                    const played = currentNode?.children[0]?.san ?? ''
-                    if (fen) fetchMultiPv(fen, played)
-                  }}
-                  overrideClass='w-full bg-blue-600 hover:bg-blue-700'
-                >
-                  Analyse Position
-                </MyButton>
+        {/* Column 2: Moves */}
+        <div className='lg:h-full overflow-y-auto w-[350px]'>
+          {tree && (
+            <div className='h-full'>
+              {!isFreeAnalysis && (
+                <div className='border-b border-gray-200 pb-1 mb-2'>
+                  <span className='text-xs text-gray-500'>
+                    {opening || 'Unknown'}
+                    {eco && <span className='text-gray-400 ml-1'>({eco})</span>}
+                  </span>
+                </div>
               )}
-              {(multiPvLoading || multiPvResults.length > 0) && (
-                <AlternativeLines
-                  results={multiPvResults}
-                  loading={multiPvLoading}
-                  positionPly={currentPly}
-                  onSelectLine={handleSelectPvLine}
-                />
-              )}
-            </>
+              <MoveTree
+                tree={tree}
+                currentNode={currentNode}
+                onSelectNode={handleSelectNode}
+              />
+            </div>
           )}
         </div>
+
       </div>
     </div>
   )

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import MyBox from 'nextjs-shared/MyBox'
 import { MyButton } from 'nextjs-shared/MyButton'
 import { MyHelpField } from 'nextjs-shared/MyHelpField'
+import { runCronSync } from '@/src/lib/actions/cron'
 
 export default function CronPage() {
   const [syncRunning, setSyncRunning] = useState(false)
@@ -15,9 +16,7 @@ export default function CronPage() {
     setSyncResult(null)
     setSyncError('')
     try {
-      const res  = await fetch('/api/cron/sync')
-      const data = await res.json()
-      if (!data.players) throw new Error(data.error ?? 'Cron sync failed')
+      const data = await runCronSync()
       setSyncResult(data)
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : 'Cron sync failed')

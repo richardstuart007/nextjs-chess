@@ -70,11 +70,12 @@ function MoveBadge({
   )
 }
 
-function EvalCell({ node }: { node?: MoveNode }) {
-  if (!node?.evaluation) return <td className='py-0.5 pl-1'></td>
+function EvalCell({ node, extraRight }: { node?: MoveNode; extraRight?: boolean }) {
+  const base = `py-0.5 pl-1${extraRight ? ' pr-4' : ''}`
+  if (!node?.evaluation) return <td className={base}></td>
   const cp = node.evaluation.cp
   return (
-    <td className={`py-0.5 pl-1 font-mono text-xxs ${evalColor(cp)}`}>
+    <td className={`${base} font-mono text-xxs ${evalColor(cp)}`}>
       {formatEval(cp)}
     </td>
   )
@@ -160,7 +161,7 @@ export default function MoveTree({ tree, currentNode, onSelectNode }: MoveTreePr
             onClick={() => onSelectNode(whiteNode)}
           />
         </td>
-        <EvalCell node={whiteNode} />
+        <EvalCell node={whiteNode} extraRight />
         <td className='py-0.5'>
           {blackNode && (
             <MoveBadge
@@ -216,7 +217,7 @@ export default function MoveTree({ tree, currentNode, onSelectNode }: MoveTreePr
 
   return (
     <div ref={containerRef} className='overflow-y-auto'>
-      <table className='w-full text-xs'>
+      <table className='text-xs'>
         <thead>
           <tr className='border-b border-gray-200 text-gray-400'>
             <th className='w-8 pb-1 text-left'>#</th>
