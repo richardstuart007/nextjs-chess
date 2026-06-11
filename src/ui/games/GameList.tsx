@@ -247,6 +247,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
               <th className='pb-1 pr-2 text-center'>Time</th>
               <th className='pb-1 pr-2'>Opponent</th>
               <th className='pb-1 pr-2 text-center'>Opp. Rating</th>
+              <th className='pb-1 pr-2 text-center'>My Rating</th>
               <th className='pb-1 pr-2 text-center'>Result</th>
               <th className='pb-1 pr-2 text-center'>End</th>
               <th className='pb-1 pr-2'>Opening</th>
@@ -349,6 +350,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                   )
                 })()}
               </td>
+              <td className='py-1 pr-2' />
               <td className='py-1 pr-2 text-center'>
                 <div className='w-16 mx-auto'>
                   <MySelect
@@ -392,12 +394,12 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={12} className='py-4 text-center text-xs text-gray-500'>Loading...</td>
+                <td colSpan={13} className='py-4 text-center text-xs text-gray-500'>Loading...</td>
               </tr>
             )}
             {!loading && displayGames.length === 0 && (
               <tr>
-                <td colSpan={12} className='py-4 text-center text-xs text-gray-500'>
+                <td colSpan={13} className='py-4 text-center text-xs text-gray-500'>
                   No games found. Try adjusting your filters or populate games first.
                 </td>
               </tr>
@@ -430,7 +432,16 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
                   </td>
                   <td className='py-1.5 pr-2'><div className='flex justify-center text-gray-500'>{row.gd_time_class}</div></td>
                   <td className='py-1.5 pr-2'>{row.gd_opponent_username}</td>
-                  <td className='py-1.5 pr-2'><div className='flex justify-center'>{row.gd_opponent_rating}</div></td>
+                  <td className='py-1.5 pr-2'><div className={`flex justify-center ${
+                    (() => {
+                      const myRating  = row.gd_player_color === 'white' ? row.gd_white_rating : row.gd_black_rating
+                      const oppRating = row.gd_opponent_rating
+                      return row.gd_player_result === 'loss' && oppRating < myRating ? 'text-red-500'
+                           : row.gd_player_result === 'win'  && oppRating > myRating ? 'text-blue-500'
+                           : ''
+                    })()
+                  }`}>{row.gd_opponent_rating}</div></td>
+                  <td className='py-1.5 pr-2 text-center tabular-nums text-gray-700'>{row.gd_player_color === 'white' ? row.gd_white_rating : row.gd_black_rating}</td>
                   <td className='py-1.5 pr-2'>
                     <div className={`flex justify-center ${RESULT_STYLES[row.gd_player_result]}`}>
                       {row.gd_player_result}

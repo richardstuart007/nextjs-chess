@@ -14,6 +14,17 @@ CREATE TABLE IF NOT EXISTS tpl_players (
   pl_rating_blitz INTEGER
 );
 
+-- tplr_player_ratings: latest rating per player per time class
+CREATE TABLE IF NOT EXISTS tplr_player_ratings (
+  plr_plrid      INTEGER PRIMARY KEY,
+  plr_username   VARCHAR(64) NOT NULL,
+  plr_time_class VARCHAR(16) NOT NULL,
+  plr_rating     INTEGER     NOT NULL,
+  UNIQUE(plr_username, plr_time_class)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tplr_username ON tplr_player_ratings(plr_username);
+
 -- tgr_gamesraw: raw chess.com API response per game
 CREATE TABLE IF NOT EXISTS tgr_gamesraw (
   gr_grid            SERIAL PRIMARY KEY,
@@ -32,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_tgr_has_pgn  ON tgr_gamesraw(gr_grid) WHERE gr_pg
 -- tsa_savedanalyses: user-saved analysis branches from /analyze
 CREATE TABLE IF NOT EXISTS tsa_savedanalyses (
   sa_said          SERIAL PRIMARY KEY,
-  sa_grid          INTEGER REFERENCES tgr_gamesraw(gr_grid) ON DELETE CASCADE,
+  sa_grid          INTEGER,
   sa_save_type     VARCHAR(16) NOT NULL,
   sa_title         VARCHAR(256),
   sa_notes         TEXT,
@@ -42,18 +53,15 @@ CREATE TABLE IF NOT EXISTS tsa_savedanalyses (
   sa_starting_ply  INTEGER,
   sa_tree_data     JSONB,
   sa_eco_code      VARCHAR(8),
-  sa_opening_name  TEXT,
-  sa_created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  sa_updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  sa_opening_name  TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_tsa_game ON tsa_savedanalyses(sa_grid);
 
 -- tgd_gamesdecon: deconstructed game data extracted from raw
-DROP TABLE IF EXISTS tgd_gamesdecon CASCADE;
-CREATE TABLE tgd_gamesdecon (
+CREATE TABLE IF NOT EXISTS tgd_gamesdecon (
   gd_gdid              SERIAL PRIMARY KEY,
-  gd_grid              INTEGER NOT NULL REFERENCES tgr_gamesraw(gr_grid) ON DELETE CASCADE,
+  gd_grid              INTEGER NOT NULL,
   gd_white_username    VARCHAR(64) NOT NULL,
   gd_black_username    VARCHAR(64) NOT NULL,
   gd_white_rating      INTEGER NOT NULL,
@@ -83,8 +91,7 @@ CREATE INDEX idx_tgd_result          ON tgd_gamesdecon(gd_player_result);
 CREATE INDEX idx_tgd_time_class      ON tgd_gamesdecon(gd_time_class);
 
 -- tec_ecoreference: ECO code to opening name lookup
-DROP TABLE IF EXISTS tec_ecoreference CASCADE;
-CREATE TABLE tec_ecoreference (
+CREATE TABLE IF NOT EXISTS tec_ecoreference (
   ec_ecid          SERIAL PRIMARY KEY,
   ec_eco_code      VARCHAR(8) NOT NULL,
   ec_opening_name  TEXT NOT NULL,
