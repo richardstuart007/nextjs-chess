@@ -419,8 +419,8 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
   // -----------------------------------------------------------------------
   // Interactive board: handle piece drop
   // -----------------------------------------------------------------------
-  function handlePieceDrop(sourceSquare: string, targetSquare: string): boolean {
-    if (!tree) return false
+  function handlePieceDrop({ sourceSquare, targetSquare }: { piece: any; sourceSquare: string; targetSquare: string | null }): boolean {
+    if (!tree || !targetSquare) return false
 
     const g = new Chess(displayGame.current.fen())
     const piece = g.get(sourceSquare as Square)
@@ -647,12 +647,14 @@ export default function ChessBoardView({ game, gameRef, gameDbId, username, stoc
             <div>
               <Chessboard
                 key={boardKey}
-                position={displayGame.current.fen()}
-                boardWidth={440}
-                arePiecesDraggable={true}
-                onPieceDrop={handlePieceDrop}
-                boardOrientation={playerColor}
-                customSquareStyles={customSquareStyles}
+                options={{
+                  position: displayGame.current.fen(),
+                  boardStyle: { width: '440px', maxWidth: '440px' },
+                  allowDragging: true,
+                  onPieceDrop: handlePieceDrop,
+                  boardOrientation: playerColor,
+                  squareStyles: customSquareStyles,
+                }}
               />
             </div>
           </div>
