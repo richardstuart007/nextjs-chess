@@ -1,4 +1,3 @@
-# Changes — nextjs-chess
+# Changes — nextjs-chess, "version": "1.0.3"
 
-## package.json
-- Removed `clsx` from dependencies — was listed but never imported anywhere in src/
+_(no changes yet this round)_
