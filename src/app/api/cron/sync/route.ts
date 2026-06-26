@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPlayers, updatePlayerRating } from '@/src/lib/actions/players'
 import { initSync, syncArchive } from '@/src/lib/actions/sync'
 import { deconstructGames } from '@/src/lib/actions/deconstruct'
+import { sql } from 'nextjs-shared/db'
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET
@@ -13,6 +14,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const db = await sql()
+    const lockResult = await db.query({
+      caller: 'cron_sync',
+      query: 'SELECT pg_try_advisory_lock(1) AS acquired',
+      functionName: 'GET'
+    })
+    if (!lockResult.rows[0].acquired) {
+      return NextResponse.json({ message: 'Sync already running, skipping' })
+    }
+
     const players = await getPlayers()
     const summary: { username: string; inserted: number; deconstructed: number }[] = []
 
