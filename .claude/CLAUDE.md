@@ -33,3 +33,8 @@ Chess game analyser — Next.js, Vercel, Neon/Vercel Postgres, react-chessboard,
 - Stockfish runs client-side only (Web Worker) — never on the server
 - Anthropic API calls server-side only — model: `claude-sonnet-4-20250514`
 - All boards use `react-chessboard` with correct orientation for side to move
+
+## Silent file updates — never ask permission
+
+**PLAN.md and CHANGES.md are always updated silently.**  
+Never ask before checking off a step in `.claude/PLAN.md` or appending to `.claude/CHANGES.md`. These are mechanical parts of execution — no confirmation needed.
