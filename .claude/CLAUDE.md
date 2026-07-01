@@ -34,7 +34,7 @@ Chess game analyser — Next.js, Vercel, Neon/Vercel Postgres, react-chessboard,
 - Anthropic API calls server-side only — model: `claude-sonnet-4-20250514`
 - All boards use `react-chessboard` with correct orientation for side to move
 
-## Silent file updates — never ask permission
+## Schema file
 
-**PLAN.md and CHANGES.md are always updated silently.**  
-Never ask before checking off a step in `.claude/PLAN.md` or appending to `.claude/CHANGES.md`. These are mechanical parts of execution — no confirmation needed.
+`scripts/schema.sql` is the single source of truth for the database structure. Every new table and index must be added here.
+
