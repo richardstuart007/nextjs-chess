@@ -11,6 +11,7 @@ import TerminationChart from '@/src/ui/charts/TerminationChart'
 import MyBox from 'nextjs-shared/MyBox'
 import { getPlayer, getPlayerRatings } from '@/src/lib/actions/players'
 import { ChessComGame } from '@/src/lib/chesscom'
+import { getPlayerTimeClasses } from '@/src/lib/constants'
 
 interface Player {
   username: string
@@ -49,7 +50,14 @@ export default function HomeDashboard({ players, lastAnalyzedGameId }: HomeDashb
       ])
       setDbPlayers(playerResults)
       const ratingsMap: Record<string, Record<string, number>> = {}
-      players.forEach((p, i) => { ratingsMap[p.username] = ratingResults[i] })
+      players.forEach((p, i) => {
+        const allowed = getPlayerTimeClasses(p.username)
+        const filtered: Record<string, number> = {}
+        for (const [timeClass, rating] of Object.entries(ratingResults[i])) {
+          if (allowed.includes(timeClass)) filtered[timeClass] = rating
+        }
+        ratingsMap[p.username] = filtered
+      })
       setDbRatings(ratingsMap)
     }
     loadAll()
@@ -99,27 +107,29 @@ export default function HomeDashboard({ players, lastAnalyzedGameId }: HomeDashb
         })}
       </div>
 
-      <div className='flex border-b border-gray-200'>
-        <button
-          onClick={() => changeTab('games')}
-          className={`px-4 py-2 text-sm font-medium ${
-            tab === 'games'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Games
-        </button>
-        <button
-          onClick={() => changeTab('graph')}
-          className={`px-4 py-2 text-sm font-medium ${
-            tab === 'graph'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Rating
-        </button>
+      <div className='flex items-end'>
+        <div className='mr-3 flex rounded-md border border-gray-200 bg-gray-50 px-1 py-1'>
+          <button
+            onClick={() => changeTab('games')}
+            className={`px-4 py-2 text-sm font-medium ${
+              tab === 'games'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Games
+          </button>
+          <button
+            onClick={() => changeTab('graph')}
+            className={`px-4 py-2 text-sm font-medium ${
+              tab === 'graph'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Rating
+          </button>
+        </div>
         <button
           onClick={() => changeTab('openings')}
           className={`px-4 py-2 text-sm font-medium ${

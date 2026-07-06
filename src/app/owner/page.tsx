@@ -6,8 +6,9 @@ import MyBox from 'nextjs-shared/MyBox'
 import { MyButton } from 'nextjs-shared/MyButton'
 import { MyHelpField } from 'nextjs-shared/MyHelpField'
 import { runCronSync } from '@/src/lib/actions/cron'
+import MaintenancePage from '@/src/app/owner/maintenance/page'
 
-const TABS = ['Logging', 'Cache', 'Cron'] as const
+const TABS = ['Logging', 'Cache', 'Cron', 'Maintenance'] as const
 type Tab = typeof TABS[number]
 
 export default function OwnerPage() {
@@ -70,6 +71,11 @@ export default function OwnerPage() {
                 </div>
               )}
             </MyBox>
+          </div>
+        )}
+        {activeTab === 'Maintenance' && (
+          <div className='p-8'>
+            <MaintenancePage />
           </div>
         )}
       </Suspense>

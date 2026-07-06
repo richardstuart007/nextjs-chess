@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Chess Game Analyzer',
+  title: 'Next Chess',
   description: 'Analyze your chess.com games with Stockfish'
 }
 

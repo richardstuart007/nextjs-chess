@@ -268,6 +268,7 @@ export type GameFilters = {
   color?: string
   timeClass?: string
   opening?: string
+  openingNameExact?: string
   eco?: string
   dateFrom?: string
   dateTo?: string
@@ -303,6 +304,9 @@ function buildFilters(username: string, filters: GameFilters): Filter[] {
   }
   if (filters.opening) {
     result.push({ column: 'gd_opening_name', operator: 'LIKE', value: filters.opening })
+  }
+  if (filters.openingNameExact) {
+    result.push({ column: 'gd_opening_name', operator: '=', value: filters.openingNameExact })
   }
   if (filters.eco) {
     result.push({ column: 'gd_eco_code', operator: 'LIKE', value: filters.eco })

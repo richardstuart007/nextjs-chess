@@ -157,14 +157,20 @@ export default function OpeningScoreChart({ players, onSelectGame, lastAnalyzedG
       const colorFilter = color === 'both' ? undefined : color
       const rows = await fetchFilteredGames(
         username,
-        { eco: selectedEco!, color: colorFilter, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined },
+        {
+          eco: selectedEco!,
+          openingNameExact: selectedName,
+          color: colorFilter,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined
+        },
         1, 500
       )
       if (!cancelled) { setGameRows(rows); setGamesLoading(false) }
     }
     loadGames().catch(() => { if (!cancelled) setGamesLoading(false) })
     return () => { cancelled = true }
-  }, [selectedEco, username, color, dateFrom, dateTo])
+  }, [selectedEco, selectedName, username, color, dateFrom, dateTo])
 
   function handleSelectGame(row: any) {
     if (!onSelectGame) return

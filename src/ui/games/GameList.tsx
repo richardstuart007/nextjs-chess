@@ -106,6 +106,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
   const [filters, setFilters] = useState<GameFilters>(() => ss('chess-gl-filters', { dateFrom: DEFAULT_DATE_FROM }))
   const [currentPage, setCurrentPage] = useState(() => ss('chess-gl-page', 1))
   const [itemsPerPage, setItemsPerPage] = useState(() => { const v = ss<number>('chess-gl-items', 25); return v === 15 ? 25 : v })
+  const [fetchLimit, setFetchLimit] = useState(() => ss<number>('chess-gl-fetchLimit', 10000))
   const [allGames, setAllGames] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [minDate, setMinDate] = useState<string | undefined>()
@@ -118,8 +119,9 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
       sessionStorage.setItem('chess-gl-playerFilter', JSON.stringify(playerFilter))
       sessionStorage.setItem('chess-gl-page', JSON.stringify(currentPage))
       sessionStorage.setItem('chess-gl-items', JSON.stringify(itemsPerPage))
+      sessionStorage.setItem('chess-gl-fetchLimit', JSON.stringify(fetchLimit))
     } catch {}
-  }, [filters, playerFilter, currentPage, itemsPerPage])
+  }, [filters, playerFilter, currentPage, itemsPerPage, fetchLimit])
 
   useEffect(() => {
     async function fetchMin() {
@@ -170,7 +172,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
       }
 
       const allResults = await Promise.all(
-        usernamesToFetch.map(u => fetchFilteredGames(u, filters, 1, 10000))
+        usernamesToFetch.map(u => fetchFilteredGames(u, filters, 1, fetchLimit))
       )
       const merged = allResults.flat().sort((a: any, b: any) => b.gd_end_time - a.gd_end_time)
 
@@ -183,7 +185,7 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
 
     fetchAll().catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [playerFilter, playerUsernames, filters])
+  }, [playerFilter, playerUsernames, filters, fetchLimit])
 
   const displayGames = useMemo(() => {
     const offset = (currentPage - 1) * itemsPerPage
@@ -468,13 +470,23 @@ export default function GameList({ players, onSelectGame, onGamesChange, lastAna
       </div>
 
       <div className='mt-3 flex items-center justify-between'>
-        <div className='w-24'>
-          <MySelect
-            label='Rows'
-            options={['10', '15', '25', '50']}
-            value={String(itemsPerPage)}
-            onChange={e => { setItemsPerPage(parseInt(e.target.value, 10)); setCurrentPage(1) }}
-          />
+        <div className='flex items-center gap-2'>
+          <div className='w-24'>
+            <MySelect
+              label='Rows'
+              options={['10', '15', '25', '50']}
+              value={String(itemsPerPage)}
+              onChange={e => { setItemsPerPage(parseInt(e.target.value, 10)); setCurrentPage(1) }}
+            />
+          </div>
+          <div className='w-28'>
+            <MySelect
+              label='Max games'
+              options={['1000', '5000', '10000', '25000', '50000', '100000']}
+              value={String(fetchLimit)}
+              onChange={e => { setFetchLimit(parseInt(e.target.value, 10)); setCurrentPage(1) }}
+            />
+          </div>
         </div>
         {totalPages > 1 && (
           <MyPagination

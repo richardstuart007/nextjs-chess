@@ -28,8 +28,7 @@ function availableGrans(spanDays: number): RatingGranularity[] {
   if (spanDays < 2)   return ['game']
   if (spanDays < 14)  return ['game', 'day']
   if (spanDays < 60)  return ['game', 'day', 'week']
-  if (spanDays < 365) return ['day', 'week', 'month']
-  return ['week', 'month']
+  return ['day', 'week', 'month']
 }
 
 function defaultGran(spanDays: number): RatingGranularity {
