@@ -34,16 +34,6 @@ export async function getGameCount(playerUsername: string): Promise<number> {
   })
 }
 
-export async function getRecentGames(playerUsername: string, limit: number = 100) {
-  return table_fetch({
-    caller: 'getRecentGames',
-    table: GAMES_TABLE,
-    whereColumnValuePairs: [{ column: 'gr_player_username', value: playerUsername.toLowerCase() }],
-    orderBy: 'gr_end_time DESC',
-    limit
-  })
-}
-
 export async function getGameById(gameId: number) {
   const rows = await table_fetch({
     caller: 'getGameById',
@@ -51,51 +41,6 @@ export async function getGameById(gameId: number) {
     whereColumnValuePairs: [{ column: 'gr_grid', value: gameId }]
   })
   return rows[0] ?? null
-}
-
-export async function getLatestGameEndTime(playerUsername: string): Promise<number | null> {
-  const rows = await table_fetch({
-    caller: 'getLatestGameEndTime',
-    table: GAMES_TABLE,
-    whereColumnValuePairs: [{ column: 'gr_player_username', value: playerUsername.toLowerCase() }],
-    orderBy: 'gr_end_time DESC',
-    limit: 1,
-    columns: ['gr_end_time']
-  })
-  return rows[0]?.gr_end_time ?? null
-}
-
-export async function gameExists(chesscomUuid: string): Promise<boolean> {
-  const rows = await table_fetch({
-    caller: 'gameExists',
-    table: GAMES_TABLE,
-    whereColumnValuePairs: [{ column: 'gr_chesscom_uuid', value: chesscomUuid }],
-    limit: 1,
-    columns: ['gr_grid']
-  })
-  return rows.length > 0
-}
-
-export async function insertRawGame(data: {
-  player_username: string
-  chesscom_uuid: string
-  raw_data: object
-  pgn?: string | null
-  end_time: number
-  time_class: string
-}) {
-  return table_write({
-    caller: 'insertRawGame',
-    table: GAMES_TABLE,
-    columnValuePairs: [
-      { column: 'gr_player_username', value: data.player_username.toLowerCase() },
-      { column: 'gr_chesscom_uuid', value: data.chesscom_uuid },
-      { column: 'gr_raw_data', value: JSON.stringify(data.raw_data) },
-      { column: 'gr_pgn', value: data.pgn ?? null },
-      { column: 'gr_end_time', value: data.end_time },
-      { column: 'gr_time_class', value: data.time_class }
-    ]
-  })
 }
 
 //----------------------------------------------------------------------------------
